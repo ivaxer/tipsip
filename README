@@ -1,0 +1,6 @@
+TIPSIP -- SIP-related services
+
+Currently in development.
+
+TODO:
+ - Presence server with SIP and RESTful interfaces.
