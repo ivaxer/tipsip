@@ -46,3 +46,12 @@ class PresenceServerTest(unittest.TestCase):
         self.assertEqual(pdoc['status'], 'online')
         reactor.callLater(0.02, d.callback, None)
         return d
+
+    def test_statusLoadStore(self):
+        d = defer.Deferred()
+        self.presence._storeStatusTimer('ivaxer@tipmeet.com', 'tag', 0.01)
+        self.presence._loadStatusTimers()
+        self.assertTrue(self.presence._status_timers['ivaxer@tipmeet.com', 'tag'].active())
+        reactor.callLater(0.02, lambda: d.callback(len(self.presence._status_timers)))
+        d.addCallback(self.assertEqual, 0)
+        return d

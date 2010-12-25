@@ -30,7 +30,7 @@ class PresenceService(object):
         table = self._resourceTable(resource)
         status = Status(pdoc, expiresat, priority)
         self.storage.hset(table, tag, status.serialize())
-        self._setStatusTimer(expires, resource, tag)
+        self._setStatusTimer(resource, tag, expires)
         self._notifyWatchers(resource)
 
     def getStatus(self, resource):
@@ -69,7 +69,7 @@ class PresenceService(object):
             self.storage.hdel(table, tag)
         except KeyError, e:
             self._log('Storage error: %s' % (e,))
-        self._delStatusTimer(resource, tag)
+        self._cancelStatusTimer(resource, tag)
 
     def watch(self, callback, *args, **kwargs):
         self._callbacks.append((callback, args, kwargs))
@@ -85,19 +85,45 @@ class PresenceService(object):
                 active.append((tag, status))
         return active, expired
 
-    def _setStatusTimer(self, delay, resource, tag):
+    def _setStatusTimer(self, resource, tag, delay):
         if (resource, tag) in self._status_timers:
             self._status_timers[resource, tag].reset(delay)
         else:
             self._status_timers[resource, tag] = reactor.callLater(delay, self.removeStatus, resource, tag)
+        self._storeStatusTimer(resource, tag, delay)
 
-    def _delStatusTimer(self, resource, tag):
+    def _cancelStatusTimer(self, resource, tag):
         if (resource, tag) in self._status_timers:
             timer = self._status_timers.pop((resource, tag))
             if timer.active():
                 timer.cancel()
+            self._dropStatusTimer(resource, tag)
         else:
             self._log("Timer (%s, %s) already deleted" % (resource, tag))
+
+    def _storeStatusTimer(self, resource, tag, delay):
+        table = self._timersTable()
+        key = '%s:%s' % (resource, tag)
+        expiresat = utils.seconds() + delay
+        self.storage.hset(table, key, expiresat)
+
+    def _dropStatusTimer(self, resource, tag):
+        table = self._timersTable()
+        key = '%s:%s' % (resource, tag)
+        self.storage.hdel(table, key)
+
+    def _loadStatusTimers(self):
+        table = self._timersTable()
+        timers = self.storage.hgetall(table)
+        stale_timers = []
+        cur_time = utils.seconds()
+        for key, expiresat in timers:
+            resource, tag = key.split(':')
+            if expiresat < cur_time:
+                self._dropStatusTimer(self, resource, tag)
+            else:
+                delay = expiresat - cur_time
+                self._setStatusTimer(resource, tag, delay)
 
     def _notifyWatchers(self, resource):
         status = self.getStatus(resource)
@@ -106,6 +132,9 @@ class PresenceService(object):
 
     def _resourceTable(self, resource):
         return 'res:' + resource
+
+    def _timersTable(self):
+        return 'sys:timers'
 
     def _log(self, *args, **kw):
         kw['system'] = 'presence'
