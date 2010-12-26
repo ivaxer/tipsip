@@ -4,7 +4,7 @@ import json
 
 import utils
 
-from twisted.internet import reactor
+from twisted.internet import reactor, defer
 
 class Status(dict):
     def __init__(self, pdoc, expiresat, priority):
@@ -25,48 +25,35 @@ class PresenceService(object):
         self._callbacks = []
         self._status_timers = {}
 
+    @defer.inlineCallbacks
     def putStatus(self, resource, tag, pdoc, expires, priority=0):
         expiresat = expires + utils.seconds()
         table = self._resourceTable(resource)
         status = Status(pdoc, expiresat, priority)
-        self.storage.hset(table, tag, status.serialize())
+        yield self.storage.hset(table, tag, status.serialize())
         self._setStatusTimer(resource, tag, expires)
         self._notifyWatchers(resource)
 
+    @defer.inlineCallbacks
     def getStatus(self, resource):
         table = self._resourceTable(resource)
-        statuses = [(tag, Status.parse(x)) for (tag,  x) in self.storage.hgetall(table)]
+        r = yield self.storage.hgetall(table)
+        statuses = [(tag, Status.parse(x)) for (tag,  x) in r.iteritems()]
         active, expired = self._splitExpiredStatuses(statuses)
         if expired:
             self._log("Expired statuses of resource '%s' found: %s" % (resource, expired))
             for tag, _ in expired:
                 self.removeStatus(resource, tag)
-        return active
-
-    # Consider to move this function from presence core
-    def getAggrPdoc(self, resource, f=None):
-        def aggr(statuses):
-            max_priority = aggr_pdoc = None
-            for tag, status in statuses:
-                cur_priority = status['priority']
-                if cur_priority > max_priority:
-                    max_priority = cur_priority
-                    aggr_pdoc = status['pdoc']
-                elif max_priority == cur_priority and aggr_pdoc and aggr_pdoc['status'] == 'offline' and status['pdoc']['status'] == 'online':
-                    aggr_pdoc = status['pdoc']
-            return aggr_pdoc
-        if not f:
-            f = aggr
-        statuses = self.getStatus(resource)
-        return f(statuses)
+        defer.returnValue(active)
 
     def dumpStatuses(self):
         raise NotImplemented
 
+    @defer.inlineCallbacks
     def removeStatus(self, resource, tag):
         table = self._resourceTable(resource)
         try:
-            self.storage.hdel(table, tag)
+            yield self.storage.hdel(table, tag)
         except KeyError, e:
             self._log('Storage error: %s' % (e,))
         self._cancelStatusTimer(resource, tag)
@@ -101,23 +88,26 @@ class PresenceService(object):
         else:
             self._log("Timer (%s, %s) already deleted" % (resource, tag))
 
+    @defer.inlineCallbacks
     def _storeStatusTimer(self, resource, tag, delay):
         table = self._timersTable()
         key = '%s:%s' % (resource, tag)
         expiresat = utils.seconds() + delay
-        self.storage.hset(table, key, expiresat)
+        yield self.storage.hset(table, key, expiresat)
 
+    @defer.inlineCallbacks
     def _dropStatusTimer(self, resource, tag):
         table = self._timersTable()
         key = '%s:%s' % (resource, tag)
-        self.storage.hdel(table, key)
+        yield self.storage.hdel(table, key)
 
+    @defer.inlineCallbacks
     def _loadStatusTimers(self):
         table = self._timersTable()
-        timers = self.storage.hgetall(table)
+        timers = yield self.storage.hgetall(table)
         stale_timers = []
         cur_time = utils.seconds()
-        for key, expiresat in timers:
+        for key, expiresat in timers.iteritems():
             resource, tag = key.split(':')
             if expiresat < cur_time:
                 self._dropStatusTimer(self, resource, tag)
@@ -125,8 +115,9 @@ class PresenceService(object):
                 delay = expiresat - cur_time
                 self._setStatusTimer(resource, tag, delay)
 
+    @defer.inlineCallbacks
     def _notifyWatchers(self, resource):
-        status = self.getStatus(resource)
+        status = yield self.getStatus(resource)
         for callback, arg, kw in self._callbacks:
             callback(resource, status, *args, **kw)
 

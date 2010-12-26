@@ -9,49 +9,45 @@ class PresenceServerTest(unittest.TestCase):
     def setUp(self):
         self.presence = PresenceService(MemoryStorage())
 
+    @defer.inlineCallbacks
     def test_removeStatus(self):
-        self.presence.putStatus('ivaxer@tipmeet.com', 'forwarding', {"status": "online"},  expires=3600, priority=10)
-        self.presence.putStatus('john@tipmeet.com', 'rand', {"status": "online"},  expires=3600)
-        self.presence.removeStatus('john@tipmeet.com', 'rand')
-        self.presence.removeStatus('ivaxer@tipmeet.com', 'forwarding')
-        self.assertEqual(self.presence.getStatus('ivaxer@tipmeet.com'), [])
-        self.assertEqual(self.presence.getStatus('john@tipmeet.com'), [])
+        yield self.presence.putStatus('ivaxer@tipmeet.com', 'forwarding', {"status": "online"},  expires=3600, priority=10)
+        yield self.presence.putStatus('john@tipmeet.com', 'rand', {"status": "online"},  expires=3600)
+        yield self.presence.removeStatus('john@tipmeet.com', 'rand')
+        yield self.presence.removeStatus('ivaxer@tipmeet.com', 'forwarding')
+        s1 = yield self.presence.getStatus('ivaxer@tipmeet.com')
+        s2 = yield self.presence.getStatus('john@tipmeet.com')
+        self.assertEqual(s1, [])
+        self.assertEqual(s2, [])
 
+    @defer.inlineCallbacks
     def test_statusExpires(self):
+        yield self.presence.putStatus('ivaxer@tipmeet.com', 'forwarding', '', expires=0.01)
+        yield self.presence.putStatus('ivaxer@tipmeet.com', 'calendar', '', expires=0.01)
+        yield self.presence.putStatus('ivaxer@tipmeet.com', 'rand', '', expires=0.01)
         d = defer.Deferred()
-        self.presence.putStatus('ivaxer@tipmeet.com', 'forwarding', '', expires=0.01)
-        self.presence.putStatus('ivaxer@tipmeet.com', 'calendar', '', expires=0.01)
-        self.presence.putStatus('ivaxer@tipmeet.com', 'rand', '', expires=0.01)
-        reactor.callLater(0.02, lambda: d.callback(self.presence.getStatus('ivaxer@tipmeet.com')))
-        d.addCallback(self.assertEqual, [])
-        return d
-
-    def test_removeUnknownStatus(self):
-        self.presence.removeStatus('cadabra@tipmeet.com', 'cadabra')
-
-    def test_getStatus(self):
-        self.presence.putStatus('ivaxer@tipmeet.com', 'forwarding', {"status": "online"},  expires=3600, priority=10)
-        self.presence.removeStatus('ivaxer@tipmeet.com', 'forwarding')
-
-    def test_getAggrPodc(self):
-        d = defer.Deferred()
-        self.presence.putStatus('ivaxer@tipmeet.com', 'calendar', {'status': 'online'}, expires=0.01)
-        self.presence.putStatus('ivaxer@tipmeet.com', 'rand', {'status': 'offline'}, expires=0.01, priority=10)
-        self.presence.putStatus('john@tipmeet.com', 'calendar', {'status': 'online'}, expires=0.01)
-        self.presence.putStatus('john@tipmeet.com', 'rand', {'status': 'offline'}, expires=0.01, priority=10)
-        self.presence.putStatus('john@tipmeet.com', 'chuck', {'status': 'online'}, expires=0.01, priority=10)
-        pdoc = self.presence.getAggrPdoc('ivaxer@tipmeet.com')
-        self.assertEqual(pdoc['status'], 'offline')
-        pdoc = self.presence.getAggrPdoc('john@tipmeet.com')
-        self.assertEqual(pdoc['status'], 'online')
         reactor.callLater(0.02, d.callback, None)
-        return d
+        yield d
+        s = yield self.presence.getStatus('ivaxer@tipmeet.com')
+        self.assertEqual(s, [])
 
+
+    @defer.inlineCallbacks
+    def test_removeUnknownStatus(self):
+        yield self.presence.removeStatus('cadabra@tipmeet.com', 'cadabra')
+
+    @defer.inlineCallbacks
+    def test_getStatus(self):
+        yield self.presence.putStatus('ivaxer@tipmeet.com', 'forwarding', {"status": "online"},  expires=3600, priority=10)
+        yield self.presence.removeStatus('ivaxer@tipmeet.com', 'forwarding')
+
+    @defer.inlineCallbacks
     def test_statusLoadStore(self):
         d = defer.Deferred()
-        self.presence._storeStatusTimer('ivaxer@tipmeet.com', 'tag', 0.01)
-        self.presence._loadStatusTimers()
+        yield self.presence._storeStatusTimer('ivaxer@tipmeet.com', 'tag', 0.01)
+        yield self.presence._loadStatusTimers()
         self.assertTrue(self.presence._status_timers['ivaxer@tipmeet.com', 'tag'].active())
         reactor.callLater(0.02, lambda: d.callback(len(self.presence._status_timers)))
         d.addCallback(self.assertEqual, 0)
-        return d
+        yield d
+
