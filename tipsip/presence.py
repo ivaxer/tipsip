@@ -6,6 +6,8 @@ import utils
 
 from twisted.internet import reactor, defer
 
+from tipsip import stats
+
 class Status(dict):
     def __init__(self, pdoc, expiresat, priority):
         self['presence'] = pdoc
@@ -27,6 +29,7 @@ class PresenceService(object):
 
     @defer.inlineCallbacks
     def putStatus(self, resource, pdoc, expires, priority=0, tag=None):
+        stats['presence_put_statuses'] += 1
         if not tag:
             tag = utils.random_str(10)
         expiresat = expires + utils.seconds()
@@ -42,6 +45,7 @@ class PresenceService(object):
 
     @defer.inlineCallbacks
     def getStatus(self, resource):
+        stats['presence_gotten_statuses'] += 1
         table = self._resourceTable(resource)
         r = yield self.storage.hgetall(table)
         statuses = [(tag, Status.parse(x)) for (tag,  x) in r.iteritems()]
@@ -54,6 +58,7 @@ class PresenceService(object):
 
     @defer.inlineCallbacks
     def dumpStatuses(self):
+        stats['presence_dumped_statuses'] += 1
         rset = self._resourcesSet()
         all_resources = yield self.storage.sgetall(rset)
         result = {}
@@ -63,6 +68,7 @@ class PresenceService(object):
 
     @defer.inlineCallbacks
     def removeStatus(self, resource, tag):
+        stats['presence_removed_statuses'] += 1
         table = self._resourceTable(resource)
         try:
             yield self.storage.hdel(table, tag)
@@ -70,6 +76,7 @@ class PresenceService(object):
             if not statuses:
                 rset = self._resourcesSet()
                 yield self.storage.srem(rset, resource)
+            stats['presence_active_timers'] -= 1
             r = 'Status removed'
         except KeyError, e:
             self._log('Storage error: %s' % (e,))
@@ -95,11 +102,13 @@ class PresenceService(object):
         if (resource, tag) in self._status_timers:
             self._status_timers[resource, tag].reset(delay)
         else:
+            stats['presence_active_timers'] += 1
             self._status_timers[resource, tag] = reactor.callLater(delay, self.removeStatus, resource, tag)
         self._storeStatusTimer(resource, tag, delay)
 
     def _cancelStatusTimer(self, resource, tag):
         if (resource, tag) in self._status_timers:
+            stats['presence_active_timers'] -= 1
             timer = self._status_timers.pop((resource, tag))
             if timer.active():
                 timer.cancel()

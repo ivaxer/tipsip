@@ -5,7 +5,7 @@ import json
 from twisted.internet import defer
 from twisted.web import resource, server
 
-from tipsip import statistics, utils
+from tipsip import stats, utils
 
 from twisted.python import log
 
@@ -20,7 +20,7 @@ class HTTPPresence(resource.Resource):
         return [x for x in path if x]
 
     def render_GET(self, request):
-        statistics['http_received_requests'] += 1
+        stats['http_received_requests'] += 1
         path = self._filterPath(request.postpath)
         if len(path) == 1:
             return self.getStatus(request.write, request.finish, path[0])
@@ -29,7 +29,7 @@ class HTTPPresence(resource.Resource):
         return json.dumps({'reason': 'Invalid URI', 'status': 'failure'})
 
     def render_PUT(self, request):
-        statistics['http_received_requests'] += 1
+        stats['http_received_requests'] += 1
         path = self._filterPath(request.postpath)
         if len(path) == 1:
             return self.putStatus(request.write, request.finish, path[0], request.content)
@@ -38,14 +38,14 @@ class HTTPPresence(resource.Resource):
         return json.dumps({'reason': 'Invalid URI', 'status': 'failure'})
 
     def render_DELETE(self, request):
-        statistics['http_received_requests'] += 1
+        stats['http_received_requests'] += 1
         path = self._filterPath(request.postpath)
         if len(path) == 2:
             return self.removeStatus(request.write, request.finish, path[0], path[1])
         return json.dumps({'status': 'failure', 'reason': 'Invalid URI'})
 
     def render_POST(self, request):
-        statistics['http_received_requests'] += 1
+        stats['http_received_requests'] += 1
         path = self._filterPath(request.postpath)
         if path:
             return json.dumps({'status': 'failure', 'reason': 'Invalid URI'})

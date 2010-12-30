@@ -1,16 +1,19 @@
 # -*- coding: utf-8 -*-
 
 from datetime import datetime
-from collections import defaultdict
 
-class Statistics(defaultdict):
+class Statistics(dict):
     def __init__(self):
-        defaultdict.__init__(self, int)
         self.start_datetime = datetime.now()
-        self.set_start_time()
+        self.setUp()
 
-    def set_start_time(self):
+    def setUp(self):
         self['start_at'] = str(self.start_datetime)
+        self['http_received_requests'] = 0
+        self['presence_put_statuses'] = 0
+        self['presence_gotten_statuses'] = 0
+        self['presence_removed_statuses'] = 0
+        self['presence_active_timers'] = 0
 
     def update_uptime(self):
         uptime = datetime.now() - self.start_datetime
