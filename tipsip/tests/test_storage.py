@@ -27,6 +27,7 @@ class StorageTestCase(object):
         ex = {'field1': 'value1', 'field2': 'value2'}
         self.assertEqual(ex, r)
 
+    @defer.inlineCallbacks
     def test_hgetall_unknown(self):
         d = self.storage.hgetall("cadabra")
         d.addErrback(lambda f: f.trap(KeyError))
@@ -63,6 +64,7 @@ class StorageTestCase(object):
         d.addErrback(lambda f: f.trap(KeyError))
         yield d
 
+    @defer.inlineCallbacks
     def test_sgetall_unknown(self):
         d = self.storage.sgetall("cadabra")
         d.addErrback(lambda f: f.trap(KeyError))

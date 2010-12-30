@@ -31,10 +31,13 @@ class PresenceService(object):
             tag = utils.random_str(10)
         expiresat = expires + utils.seconds()
         table = self._resourceTable(resource)
+        rset = self._resourcesSet()
         status = Status(pdoc, expiresat, priority)
-        yield self.storage.hset(table, tag, status.serialize())
+        d1 = self.storage.hset(table, tag, status.serialize())
+        d2 = self.storage.sadd(rset, resource)
+        d3 = self._notifyWatchers(resource)
+        yield defer.DeferredList([d1, d2, d3])
         self._setStatusTimer(resource, tag, expires)
-        self._notifyWatchers(resource)
         defer.returnValue(tag)
 
     @defer.inlineCallbacks
@@ -49,14 +52,24 @@ class PresenceService(object):
                 self.removeStatus(resource, tag)
         defer.returnValue(active)
 
+    @defer.inlineCallbacks
     def dumpStatuses(self):
-        raise NotImplemented
+        rset = self._resourcesSet()
+        all_resources = yield self.storage.sgetall(rset)
+        result = {}
+        for resource in all_resources:
+            result[resource] = yield self.getStatus(resource)
+        defer.returnValue(result)
 
     @defer.inlineCallbacks
     def removeStatus(self, resource, tag):
         table = self._resourceTable(resource)
         try:
             yield self.storage.hdel(table, tag)
+            statuses = yield self.storage.hgetall(table)
+            if not statuses:
+                rset = self._resourcesSet()
+                yield self.storage.srem(rset, resource)
             r = 'Status removed'
         except KeyError, e:
             self._log('Storage error: %s' % (e,))
@@ -132,6 +145,9 @@ class PresenceService(object):
 
     def _timersTable(self):
         return 'sys:timers'
+
+    def _resourcesSet(self):
+        return 'sys:resources'
 
     def _log(self, *args, **kw):
         kw['system'] = 'presence'

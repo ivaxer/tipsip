@@ -64,7 +64,16 @@ class HTTPPresence(resource.Resource):
         return server.NOT_DONE_YET
 
     def dumpStatuses(self, write, finish):
-        return json.dumps({'status': 'failure', 'reason': 'not implemented'})
+        def reply(r):
+            result = {}
+            for res, status in r.items():
+                result[res] = utils.aggregated_presence(status)
+            write(json.dumps({'status': 'ok', 'reason': 'Successfully dumped', 'resources': result}))
+            finish()
+
+        d = self.presence.dumpStatuses()
+        d.addCallback(reply)
+        return server.NOT_DONE_YET
 
     def putStatus(self, write, finish, resource, content, tag=None):
         def reply(tag):
