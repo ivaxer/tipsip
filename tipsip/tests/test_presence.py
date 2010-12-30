@@ -11,9 +11,10 @@ class PresenceServerTest(unittest.TestCase):
 
     @defer.inlineCallbacks
     def test_removeStatus(self):
-        yield self.presence.putStatus('ivaxer@tipmeet.com', 'forwarding', {"status": "online"},  expires=3600, priority=10)
-        yield self.presence.putStatus('john@tipmeet.com', 'rand', {"status": "online"},  expires=3600)
-        yield self.presence.removeStatus('john@tipmeet.com', 'rand')
+        tag1 = yield self.presence.putStatus('ivaxer@tipmeet.com', {"status": "online"},  expires=3600, tag='forwarding', priority=10)
+        tag2 = yield self.presence.putStatus('john@tipmeet.com', {"status": "online"},  expires=3600)
+        self.assertEqual('forwarding', tag1)
+        yield self.presence.removeStatus('john@tipmeet.com', tag2)
         yield self.presence.removeStatus('ivaxer@tipmeet.com', 'forwarding')
         s1 = yield self.presence.getStatus('ivaxer@tipmeet.com')
         s2 = yield self.presence.getStatus('john@tipmeet.com')
@@ -22,9 +23,9 @@ class PresenceServerTest(unittest.TestCase):
 
     @defer.inlineCallbacks
     def test_statusExpires(self):
-        yield self.presence.putStatus('ivaxer@tipmeet.com', 'forwarding', '', expires=0.01)
-        yield self.presence.putStatus('ivaxer@tipmeet.com', 'calendar', '', expires=0.01)
-        yield self.presence.putStatus('ivaxer@tipmeet.com', 'rand', '', expires=0.01)
+        yield self.presence.putStatus('ivaxer@tipmeet.com', '', tag='forwarding', expires=0.01)
+        yield self.presence.putStatus('ivaxer@tipmeet.com', '', tag='calendar', expires=0.01)
+        yield self.presence.putStatus('ivaxer@tipmeet.com', '', tag='rand', expires=0.01)
         d = defer.Deferred()
         reactor.callLater(0.02, d.callback, None)
         yield d
@@ -38,7 +39,7 @@ class PresenceServerTest(unittest.TestCase):
 
     @defer.inlineCallbacks
     def test_getStatus(self):
-        yield self.presence.putStatus('ivaxer@tipmeet.com', 'forwarding', {"status": "online"},  expires=3600, priority=10)
+        yield self.presence.putStatus('ivaxer@tipmeet.com', {"status": "online"},  expires=3600, tag='forwarding', priority=10)
         yield self.presence.removeStatus('ivaxer@tipmeet.com', 'forwarding')
 
     @defer.inlineCallbacks

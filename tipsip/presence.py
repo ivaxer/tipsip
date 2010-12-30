@@ -26,13 +26,16 @@ class PresenceService(object):
         self._status_timers = {}
 
     @defer.inlineCallbacks
-    def putStatus(self, resource, tag, pdoc, expires, priority=0):
+    def putStatus(self, resource, pdoc, expires, priority=0, tag=None):
+        if not tag:
+            tag = utils.random_str(10)
         expiresat = expires + utils.seconds()
         table = self._resourceTable(resource)
         status = Status(pdoc, expiresat, priority)
         yield self.storage.hset(table, tag, status.serialize())
         self._setStatusTimer(resource, tag, expires)
         self._notifyWatchers(resource)
+        defer.returnValue(tag)
 
     @defer.inlineCallbacks
     def getStatus(self, resource):
@@ -130,4 +133,5 @@ class PresenceService(object):
     def _log(self, *args, **kw):
         kw['system'] = 'presence'
         utils.msg(*args, **kw)
+
 
