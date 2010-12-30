@@ -8,7 +8,7 @@ from twisted.internet import reactor, defer
 
 class Status(dict):
     def __init__(self, pdoc, expiresat, priority):
-        self['pdoc'] = pdoc
+        self['presence'] = pdoc
         self['expiresat'] = expiresat
         self['priority'] = priority
 
@@ -57,9 +57,12 @@ class PresenceService(object):
         table = self._resourceTable(resource)
         try:
             yield self.storage.hdel(table, tag)
+            r = 'Status removed'
         except KeyError, e:
             self._log('Storage error: %s' % (e,))
+            r = 'Not found'
         self._cancelStatusTimer(resource, tag)
+        defer.returnValue(r)
 
     def watch(self, callback, *args, **kwargs):
         self._callbacks.append((callback, args, kwargs))
