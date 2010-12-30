@@ -12,6 +12,7 @@ class Statistics(dict):
         self['http_received_requests'] = 0
         self['presence_put_statuses'] = 0
         self['presence_gotten_statuses'] = 0
+        self['presence_dumped_statuses'] = 0
         self['presence_removed_statuses'] = 0
         self['presence_active_timers'] = 0
 

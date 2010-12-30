@@ -54,7 +54,7 @@ class HTTPPresence(resource.Resource):
     def getStatus(self, write, finish, resource):
         def reply(status):
             res = {'status': 'ok', 'reason': 'success'}
-            res['status'] = status
+            res['presence'] = status
             write(json.dumps(res))
             finish()
 
