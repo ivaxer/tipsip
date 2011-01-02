@@ -68,3 +68,11 @@ class URITest(unittest.TestCase):
         uri = URI(scheme='sip', host='example.com:5060')
         aq(str(uri), 'sip:example.com:5060')
 
+    def test_invalid(self):
+        ar = self.assertRaises
+        ar(ValueError, URI.parse, "")
+        ar(ValueError, URI.parse, "tel:tipmeet.com")
+        ar(ValueError, URI.parse, "tipmeet.com")
+        ar(ValueError, URI.parse, "sip:tipmeet.com?test")
+        ar(ValueError, URI.parse, "sip:tipmeet.com;test")
+
