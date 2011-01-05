@@ -76,7 +76,6 @@ class PresenceService(object):
             if not statuses:
                 rset = self._resourcesSet()
                 yield self.storage.srem(rset, resource)
-            stats['presence_active_timers'] -= 1
             r = 'Status removed'
         except KeyError, e:
             self._log('Storage error: %s' % (e,))
