@@ -1,2 +1,2 @@
 from uri import URI
-from header import Headers, HeaderValue
+from header import Headers, HeaderValue, HeaderValueList

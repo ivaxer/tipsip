@@ -78,11 +78,7 @@ class Headers(dict):
 
     def __setitem__(self, key, value):
         k = name2intern(key)
-        f = dict.__setitem__
-        if isinstance(value, list):
-            f(self, k, HeaderValueList(value))
-        else:
-            f(self, k, HeaderValueList([value]))
+        dict.__setitem__(self, k, value)
 
     def __getitem__(self, key):
         k = name2intern(key)
