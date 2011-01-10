@@ -48,5 +48,4 @@ class DialogTest(unittest.TestCase):
         aq(d.remote_uri, rd.remote_uri)
         aq(d.local_target_uri, rd.local_target_uri)
         aq(d.remote_target_uri, rd.remote_target_uri)
-        yield self.store.remove(rd.id)
 
