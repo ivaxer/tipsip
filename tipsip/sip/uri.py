@@ -15,9 +15,10 @@ class URI(object):
                 (self.scheme, self.user, self.host, self.port, self.lr, self.params, self.headers)
 
     def __str__(self):
-        parameters = ';'.join('='.join(p) for p in self.params.items())
+        p = ['='.join(p) for p in self.params.items()]
         if self.lr:
-            parameters = 'lr;' + parameters
+            p.append('lr')
+        parameters = ';'.join(p)
         headers = '&'.join('='.join(h) for h in self.headers.items())
 
         uri = []
