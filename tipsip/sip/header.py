@@ -40,9 +40,29 @@ name_addr_headers = ('to', 'from', 'contact', 'reply-to', 'record-route', 'route
 exceptions_multiheaders = ('www-authenticate', 'authorization', 'proxy-authenticate',
         'proxy-authorization')
 
+exceptions_normal_form = {
+        'www-authenticate': 'WWW-Authenticate',
+        'cseq': 'CSeq',
+        'call-id': 'Call-ID',
+        'mime-version': 'MIME-Version',
+        'sip-etag': 'SIP-ETag'
+        }
+
 
 def name2intern(name):
     return compact_to_name.get(name.lower(), name.lower())
+
+def name2norm(name):
+    n = name2intern(name)
+    if n in exceptions_normal_form:
+        return exceptions_normal_form[n]
+    return '-'.join(x.capitalize() for x in n.split('-'))
+
+def name2compact(name):
+    n = name2intern(name)
+    if n in name_to_compact:
+        return name_to_compact[n]
+    return name2norm(name)
 
 def generate_tag():
     return "".join(choice(ascii_letters) for _ in xrange(7))
@@ -68,7 +88,9 @@ class Header(object):
         params = {}
         for p in s.split(';'):
             k, v = p.split('=')
-            params[k.lower()] = v
+            k = k.strip().lower()
+            v = v.strip()
+            params[k] = v
         return params
 
 
@@ -124,12 +146,12 @@ class AddressHeader(Header):
                 rest = None
         else:
             dn, rest = s.split('<')
+            dn = dn.strip()
             uri, rest = rest.split('>')
             if ';' in rest:
                 _, rest = rest.split(';')
-        dn = dn.strip()
+                rest = rest.strip()
         uri = uri.strip()
-        rest = rest.strip()
         return dn, uri, rest
 
 
@@ -177,10 +199,12 @@ class ViaHeader(Header):
             rest = None
         s = s.strip()
         if ':' in s:
-            host, port = s.strip(':')
+            host, port = s.split(':')
+            port = port.strip()
         else:
             host = s
             port = None
+        host = host.strip()
         return host, port, rest
 
 
@@ -190,6 +214,8 @@ class HeaderValueList(list):
 
 
 class Headers(dict):
+    compact = False
+
     def __init__(self, *arg, **kw):
         dict.__init__(self)
         self.update(*arg, **kw)
@@ -206,6 +232,20 @@ class Headers(dict):
         k = name2intern(key)
         dict.__delitem__(self, k)
 
+    def __contains__(self, key):
+        k = name2intern(key)
+        return dict.__contains__(self, k)
+
+    def __str__(self):
+        if self.compact:
+            f = name2compact
+        else:
+            f = name2norm
+        r = []
+        for k, v in self.items():
+            r.append('%s: %s' % (f(k), str(v)))
+        return '\r\n'.join(r)
+
     def get(self, key, d=None):
         k = name2intern(key)
         return dict.get(self, k, d)
@@ -213,4 +253,12 @@ class Headers(dict):
     def update(self, *arg, **kw):
         for k, v in dict(*arg, **kw).iteritems():
             self[k] = v
+
+    def has_key(self, key):
+        k = name2intern(key)
+        return dict.has_key(self, k)
+
+    def pop(self, key, d=None):
+        k = name2intern(key)
+        return dict.pop(self, k)
 

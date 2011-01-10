@@ -7,11 +7,15 @@ from tipsip.sip import AddressHeader, ViaHeader
 class HeadersTest(unittest.TestCase):
     def test_construct(self):
         aq = self.assertEqual
+        at = self.assertTrue
         h = Headers({'Subject': 'lunch'}, f='John', to='abacaba')
         h['TO'] = 'Carol'
         aq(h['Subject'], 'lunch')
         aq(h['from'], 'John')
         aq(h['t'], 'Carol')
+        r = str(h)
+        for line in r.split('\r\n'):
+            at(line in ['Subject: lunch', 'From: John', 'To: Carol'])
 
     def test_multiheaders(self):
         aq = self.assertEqual
@@ -24,6 +28,18 @@ class HeadersTest(unittest.TestCase):
         h2['Route'] = HeaderValueList(['<sip:alice@atlanta.com>', '<sip:bob@biloxi.com>'])
         h2['Route'].append('<sip:carol@chicago.com>')
         aq(h1, h2)
+
+    def test_manipulation(self):
+        aq = self.assertEqual
+        at = self.assertTrue
+        h = Headers()
+        h['f'] = "from header"
+        h['to'] = "to header"
+        at('FROM' in h)
+        at('To' in h)
+        to = h.pop('t')
+        aq(to, "to header")
+        at(h.has_key('From'))
 
 
 class AddressHeaderTest(unittest.TestCase):
@@ -41,6 +57,8 @@ class AddressHeaderTest(unittest.TestCase):
         aq(str(v.uri), 'sip:operator@cs.columbia.edu')
         aq(v.display_name, 'The Operator')
         aq(v.params, {'tag': '287447'})
+        v = AddressHeader.parse('sip:echo@example.com')
+        aq(str(v.uri), 'sip:echo@example.com')
 
 
 class ViaHeaderTest(unittest.TestCase):
@@ -57,4 +75,6 @@ class ViaHeaderTest(unittest.TestCase):
         aq(v.host, 'pc33.atlanta.com')
         aq(v.port, None)
         aq(v.params['branch'], 'z9hG4bK776asdhds')
+        v = ViaHeader.parse('SIP/2.0/UDP pc33.atlanta.com:5066;branch=z9hG4bK776asdhds')
+        aq(v.port, '5066')
 
