@@ -1,6 +1,7 @@
 from twisted.trial import unittest
 
-from tipsip.sip import Headers, HeaderValue, HeaderValueList
+from tipsip.sip import Headers, HeaderValueList
+from tipsip.sip import AddressHeader, ViaHeader
 
 
 class HeadersTest(unittest.TestCase):
@@ -25,15 +26,35 @@ class HeadersTest(unittest.TestCase):
         aq(h1, h2)
 
 
-class HeaderValueTest(unittest.TestCase):
+class AddressHeaderTest(unittest.TestCase):
+    def test_parsing(self):
+        aq = self.assertEqual
+        v = AddressHeader.parse('<sips:bob@192.0.2.4>;expires=60')
+        aq(str(v.uri), 'sips:bob@192.0.2.4')
+        aq(v.params['expires'], '60')
+        aq(v.display_name, '')
+        v = AddressHeader.parse('<sip:server10.biloxi.com;lr>')
+        aq(str(v.uri), 'sip:server10.biloxi.com;lr')
+        aq(v.params, {})
+        aq(v.display_name, '')
+        v = AddressHeader.parse('The Operator <sip:operator@cs.columbia.edu>;tag=287447')
+        aq(str(v.uri), 'sip:operator@cs.columbia.edu')
+        aq(v.display_name, 'The Operator')
+        aq(v.params, {'tag': '287447'})
+
+
+class ViaHeaderTest(unittest.TestCase):
     def test_construct(self):
         aq = self.assertEqual
-        at = self.assertTrue
-        v = HeaderValue('SIP/2.0/UDP server10.biloxi.com', {'branch': 'z9hG4bKnashds8'})
-        v.params['received'] = '192.0.2.3'
-        r1 = 'SIP/2.0/UDP server10.biloxi.com ;branch=z9hG4bKnashds8;received=192.0.2.3'
-        r2 = 'SIP/2.0/UDP server10.biloxi.com ;received=192.0.2.3;branch=z9hG4bKnashds8'
-        at(str(v) == r1 or str(v) == r2)
-        v = HeaderValue('314159 INVITE')
-        aq(str(v), '314159 INVITE')
+        v = ViaHeader(transport='UDP', host='192.168.0.1', port='5060', params={'received': '8.8.8.8'})
+        aq(str(v), 'SIP/2.0/UDP 192.168.0.1:5060 ;received=8.8.8.8')
+
+    def test_parsing(self):
+        aq = self.assertEqual
+        v = ViaHeader.parse('SIP/2.0/UDP pc33.atlanta.com;branch=z9hG4bK776asdhds')
+        aq(v.version, 'SIP/2.0')
+        aq(v.transport, 'UDP')
+        aq(v.host, 'pc33.atlanta.com')
+        aq(v.port, None)
+        aq(v.params['branch'], 'z9hG4bK776asdhds')
 

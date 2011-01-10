@@ -48,22 +48,140 @@ def generate_tag():
     return "".join(choice(ascii_letters) for _ in xrange(7))
 
 
-class HeaderValue(object):
+class Header(object):
     def __init__(self, value, params=None):
         self.value = value
         self.params = params or {}
 
     def __str__(self):
-        params = ';'.join('='.join(p) for p in self.params.items())
         r = []
-        r.append(self.value)
-        if params:
-            r.append(' ;' + params)
+        r.append(value)
+        p = self._renderParams()
+        r.append(p)
         return ''.join(r)
+
+    def _renderParams(self):
+        return ';'.join('='.join(p) for p in self.params.items())
+
+    @staticmethod
+    def _parse_params(s):
+        params = {}
+        for p in s.split(';'):
+            k, v = p.split('=')
+            params[k.lower()] = v
+        return params
+
+
+class AddressHeader(Header):
+    def __init__(self, display_name=None, uri=None, params=None):
+        self.display_name = display_name
+        self.uri = uri
+        self.params = params or {}
+
+    def __str__(self):
+        # XXX: check '?', ';' and ',' in uri
+        if self.display_name is None:
+            return self._renderAddrSpec()
+        else:
+            return self._renderNameAddr()
+
+    def _renderAddrSpec(self):
+        r = []
+        r.append(str(self.uri))
+        params = self._renderParams()
+        if params:
+            r.append(';' + params)
+        return ' '.join(r)
+
+    def _renderNameAddr(self):
+        r = []
+        r.append(self.display_name)
+        r.append('<' + str(self.uri) + '>')
+        params = self._renderParams()
+        if params:
+            r.append(';' + params)
+        return ' '.join(r)
 
     @classmethod
     def parse(cls, s):
-        raise NotImplementedError
+        display_name, uri, rest = cls._parse_nameaddr(s)
+        if rest:
+            params = cls._parse_params(rest)
+        else:
+            params = None
+        uri = URI.parse(uri)
+        return cls(display_name, uri, params)
+
+    @staticmethod
+    def _parse_nameaddr(s):
+        # XXX: handle quoted chars
+        if '<' not in s:
+            dn = None
+            if ';' in s:
+                uri, rest = s.split(';', 1)
+            else:
+                uri = s
+                rest = None
+        else:
+            dn, rest = s.split('<')
+            uri, rest = rest.split('>')
+            if ';' in rest:
+                _, rest = rest.split(';')
+        dn = dn.strip()
+        uri = uri.strip()
+        rest = rest.strip()
+        return dn, uri, rest
+
+
+
+class ViaHeader(Header):
+    version = 'SIP/2.0'
+
+    def __init__(self, transport, host, port=None, params=None, version='SIP/2.0'):
+        self.transport = transport
+        self.host = host
+        self.port = port
+        self.params = params or {}
+
+    def __str__(self):
+        r = []
+        r.append(self.version + '/' + self.transport)
+        addr = self.host
+        if self.port:
+            addr += ':' + str(self.port)
+        r.append(addr)
+        p = self._renderParams()
+        if p:
+            r.append(';' + p)
+        return ' '.join(r)
+
+    @classmethod
+    def parse(cls, s):
+        version, transport, rest = cls._parse_proto(s)
+        host, port, rest = cls._parse_hostport(rest)
+        if rest:
+            params = cls._parse_params(rest)
+        return cls(version=version, transport=transport, host=host, port=port, params=params)
+
+    @staticmethod
+    def _parse_proto(s):
+        sent_by, rest = s.split(None, 1)
+        version, transport = sent_by.rsplit('/', 1)
+        return version, transport, rest
+
+    @staticmethod
+    def _parse_hostport(s):
+        if ';' in s:
+            s, rest = s.split(';', 1)
+        else:
+            rest = None
+        s = s.strip()
+        if ':' in s:
+            host, port = s.strip(':')
+        else:
+            host = s
+            port = None
+        return host, port, rest
 
 
 class HeaderValueList(list):
