@@ -9,14 +9,34 @@ from header import Headers, generate_tag
 from header import request_mandatory_headers
 
 
+class MessageParsingError(Exception):
+    pass
+
+
 class Message(object):
     version = 'SIP/2.0'
 
     def __init__(self):
-        self.received_addr = None
-        self.received_iface = None
-        self.content = None
+        self.received = None
+        self.from_interface = None
         self.headers = Headers()
+        self.content = None
+
+    @classmethod
+    def parse(cls, s):
+        r = s.split('\r\n', 1)
+        if len(r) != 2:
+            raise MessageParsingError("Bad message (no CRLF found): '%s'" % (s,))
+        first_line = r[0]
+        r = first_line.split()
+        if len(r) != 3:
+            raise MessageParsingError("Bad first line: " + first_line)
+        if r[0] == cls.version:
+            return Response.parse(s)
+        elif r[2] == cls.version:
+            return Request.parse(s)
+        else:
+            raise MessageParsingError("Bad first line: " + first_line)
 
 
 class Response(Message):
@@ -34,17 +54,20 @@ class Response(Message):
         r.append('\r\n')
         return '\r\n'.join(r)
 
+    @staticmethod
+    def parse(s):
+        raise NotImplementedError("Response.parse not implemented")
+
 
 class Request(Message):
     _dialog_store = None
 
-    def __init__(self, method, ruri):
+    def __init__(self, method, ruri, headers=None, content=None):
         Message.__init__(self)
         self.method = method
-        if isinstance(ruri, basestring):
-            self.ruri = URI.parse(ruri)
-        else:
-            self.ruri = ruri
+        self.ruri = ruri
+        self.headers = headers or Headers()
+        self.content = content
         self.dialog = None
         self._has_totag = None
         self._response_totag = None
@@ -68,7 +91,8 @@ class Request(Message):
         d.remote_cseq = int(self.headers['cseq'])
         d.local_uri = str(self.headers['to'].uri)
         d.remote_uri = str(self.headers['from'].uri)
-        d.local_target_uri = str(self.received_iface)
+        iface = self.from_interface
+        d.local_target_uri = ''.join(['sip:', iface.host, ':', str(iface.port), ';transport=', iface.transport])
         d.remote_target_uri = str(self.headers['contact'].uri)
         self.dialog = d
         yield self._dialog_store.add(d)
@@ -93,6 +117,24 @@ class Request(Message):
             return False
         return True
 
+    @classmethod
+    def parse(cls, s):
+        if '\r\n\r\n' not in s:
+            raise MessageParsingError("Bad message (no CRLFCRLF found)")
+        head, content = s.split('\r\n\r\n', 1)
+        if not content:
+            content = None
+        r = head.split('\r\n', 1)
+        if len(r) == 1:
+            headers = None
+        else:
+            headers = Headers.parse(r[1])
+        request_line = r[0]
+        method, uri, version = request_line.split()
+        uri = URI.parse(uri)
+        return cls(method, uri, headers, content)
+
+
     def __str__(self):
         r = []
         r.append('%s %s %s' % (self.method, self.ruri, self.version))
@@ -100,5 +142,8 @@ class Request(Message):
         if hdrs:
             r.append(hdrs)
         r.append('\r\n')
-        return '\r\n'.join(r)
+        msg = '\r\n'.join(r)
+        if self.content:
+            msg += self.content
+        return msg
 
