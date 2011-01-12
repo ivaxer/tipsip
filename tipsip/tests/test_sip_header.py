@@ -1,6 +1,6 @@
 from twisted.trial import unittest
 
-from tipsip.sip import Headers, HeaderValueList
+from tipsip.sip import Headers
 from tipsip.sip import AddressHeader, ViaHeader
 
 
@@ -16,18 +16,6 @@ class HeadersTest(unittest.TestCase):
         r = str(h)
         for line in r.split('\r\n'):
             at(line in ['Subject: lunch', 'From: John', 'To: Carol'])
-
-    def test_multiheaders(self):
-        aq = self.assertEqual
-        h1 = Headers()
-        h1['Route'] = HeaderValueList(['<sip:alice@atlanta.com>'])
-        h1['Route'].append('<sip:bob@biloxi.com>')
-        h1['Route'].append('<sip:carol@chicago.com>')
-        aq(str(h1['Route']), '<sip:alice@atlanta.com>, <sip:bob@biloxi.com>, <sip:carol@chicago.com>')
-        h2 = Headers()
-        h2['Route'] = HeaderValueList(['<sip:alice@atlanta.com>', '<sip:bob@biloxi.com>'])
-        h2['Route'].append('<sip:carol@chicago.com>')
-        aq(h1, h2)
 
     def test_manipulation(self):
         aq = self.assertEqual

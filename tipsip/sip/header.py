@@ -30,15 +30,56 @@ name_to_compact = {
         }
 compact_to_name = dict(zip(name_to_compact.values(), name_to_compact.keys()))
 
-top_headers = ('via', 'route', 'record-route', 'proxy-require', 'max-forwards',
-        'proxy-authorization', 'to', 'from', 'contact')
+top_headers = (
+        'via',
+        'route',
+        'record-route',
+        'proxy-require',
+        'max-forwards',
+        'proxy-authorization',
+        'to',
+        'from',
+        'contact'
+        )
 
-request_mandatory_headers = ('to', 'from', 'cseq', 'call-id', 'max-forwards', 'via')
+request_mandatory_headers = (
+        'to',
+        'from',
+        'cseq',
+        'call-id',
+        'max-forwards',
+        'via'
+        )
 
-name_addr_headers = ('to', 'from', 'contact', 'reply-to', 'record-route', 'route')
+address_headers = (
+        'to',
+        'from',
+        'contact',
+        'reply-to',
+        'record-route',
+        'route')
 
-exceptions_multiheaders = ('www-authenticate', 'authorization', 'proxy-authenticate',
-        'proxy-authorization')
+multi_headers = (
+        'accept',
+        'accept-encoding',
+        'accept-language',
+        'alert-info',
+        'allow',
+        'call-info',
+        'contact',
+        'content-encoding',
+        'content-language',
+        'error-info',
+        'in-reply-to',
+        'proxy-require',
+        'record-route',
+        'require',
+        'route',
+        'supported',
+        'unsupported',
+        'via',
+        'warning'
+        )
 
 exceptions_normal_form = {
         'www-authenticate': 'WWW-Authenticate',
@@ -107,6 +148,10 @@ class AddressHeader(Header):
         else:
             return self._renderNameAddr()
 
+    def __repr__(self):
+        return "<AddressHeader display_name=%r, uri=%r, params=%r>" % \
+                (self.display_name, self.uri, self.params)
+
     def _renderAddrSpec(self):
         r = []
         r.append(str(self.uri))
@@ -117,7 +162,8 @@ class AddressHeader(Header):
 
     def _renderNameAddr(self):
         r = []
-        r.append(self.display_name)
+        if self.display_name:
+            r.append(self.display_name)
         r.append('<' + str(self.uri) + '>')
         params = self._renderParams()
         if params:
@@ -165,6 +211,10 @@ class ViaHeader(Header):
         self.port = port
         self.params = params or {}
 
+    def __repr__(self):
+        return "<Via transport=%r, host=%r, port=%r, params=%r>" % \
+                (self.transport, self.host, self.port, self.params)
+
     def __str__(self):
         r = []
         r.append(self.version + '/' + self.transport)
@@ -208,11 +258,6 @@ class ViaHeader(Header):
         return host, port, rest
 
 
-class HeaderValueList(list):
-    def __str__(self):
-        return ', '.join(self)
-
-
 class Headers(dict):
     compact = False
 
@@ -243,7 +288,12 @@ class Headers(dict):
             f = name2norm
         r = []
         for k, v in self.items():
-            r.append('%s: %s' % (f(k), str(v)))
+            k = f(k)
+            if isinstance(v, list) or isinstance(v, tuple):
+                for item in v:
+                    r.append('%s: %s' % (k, item))
+            else:
+                r.append('%s: %s' % (k, v))
         return '\r\n'.join(r)
 
     def get(self, key, d=None):
@@ -261,4 +311,47 @@ class Headers(dict):
     def pop(self, key, d=None):
         k = name2intern(key)
         return dict.pop(self, k)
+
+    @classmethod
+    def parse(cls, s):
+        headers = cls()
+        for h in cls._iter_headers(s):
+            name, hdr = h.split(':', 1)
+            name = name2intern(name.strip())
+            if name in multi_headers:
+                hdrs = hdr.split(',')
+            else:
+                hdrs = [hdr]
+            for hdr in hdrs:
+                hdr = hdr.strip()
+                if name == 'contact':
+                    if hdr != '*':
+                        hdr = AddressHeader.parse(hdr)
+                    else:
+                        headers[name] = '*'
+                        continue
+                elif name in address_headers:
+                    hdr = AddressHeader.parse(hdr)
+                elif name == 'via':
+                    hdr = ViaHeader.parse(hdr)
+                if name in multi_headers:
+                    if name not in headers:
+                        headers[name] = []
+                    headers[name].append(hdr)
+                else:
+                    headers[name] = hdr
+        return headers
+
+    @staticmethod
+    def _iter_headers(s):
+        r = ''
+        for hdr in s.split('\r\n'):
+            if hdr[0].isspace():
+                r += hdr
+            else:
+                if r:
+                    yield r
+                r = hdr
+        if r:
+            yield r
 
