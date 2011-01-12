@@ -11,7 +11,7 @@ class URI(object):
         self.headers = headers or {}
 
     def __repr__(self):
-        return "<URI scheme=%s, user=%s, host=%s, port=%s, lr=%s, params=%s, headers=%s>" % \
+        return "<URI scheme=%r, user=%r, host=%r, port=%r, lr=%r, params=%r, headers=%r>" % \
                 (self.scheme, self.user, self.host, self.port, self.lr, self.params, self.headers)
 
     def __str__(self):
