@@ -315,6 +315,8 @@ class Headers(dict):
     @classmethod
     def parse(cls, s):
         headers = cls()
+        if not s:
+            return headers
         for h in cls._iter_headers(s):
             name, hdr = h.split(':', 1)
             name = name2intern(name.strip())

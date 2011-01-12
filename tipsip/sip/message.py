@@ -16,32 +16,47 @@ class MessageParsingError(Exception):
 class Message(object):
     version = 'SIP/2.0'
 
-    def __init__(self):
+    def __init__(self, headers=None, content=None):
         self.received = None
         self.from_interface = None
-        self.headers = Headers()
-        self.content = None
+        self.headers = headers or Headers()
+        self.content = content
 
     @classmethod
     def parse(cls, s):
-        r = s.split('\r\n', 1)
-        if len(r) != 2:
-            raise MessageParsingError("Bad message (no CRLF found): '%s'" % (s,))
-        first_line = r[0]
+        if '\r\n\r\n' not in s:
+            raise MessageParsingError("Bad message (no CRLFCRLF found)")
+        head, content = s.split('\r\n\r\n', 1)
+        if not content:
+            content = None
+        if '\r\n' not in head:
+            first_line = head
+            hdrs = ''
+        else:
+            first_line, hdrs = head.split('\r\n', 1)
+        headers = Headers.parse(hdrs)
         r = first_line.split()
         if len(r) != 3:
             raise MessageParsingError("Bad first line: " + first_line)
         if r[0] == cls.version:
-            return Response.parse(s)
+            code = int(r[1])
+            reason = r[2]
+            return Response(code, reason, headers, content)
         elif r[2] == cls.version:
-            return Request.parse(s)
+            method = r[0]
+            uri = r[1]
+            return Request(method, uri, headers, content)
         else:
             raise MessageParsingError("Bad first line: " + first_line)
 
+    @staticmethod
+    def _parse_first_line(s):
+        raise NotImplementedError("_parse_first_line must be implemented in child class")
+
 
 class Response(Message):
-    def __init__(self, code, reason):
-        Message.__init__(self)
+    def __init__(self, code, reason, headers=None, content=None):
+        Message.__init__(self, headers, content)
         self.code = code
         self.reason = reason
 
@@ -52,22 +67,25 @@ class Response(Message):
         if hdrs:
             r.append(hdrs)
         r.append('\r\n')
-        return '\r\n'.join(r)
+        msg = '\r\n'.join(r)
+        if self.content:
+            msg += self.content
+        return msg
 
     @staticmethod
-    def parse(s):
-        raise NotImplementedError("Response.parse not implemented")
+    def _parse_first_line(s):
+        code, reason, version = s.split()
+        code = int(code)
+        return code, reason, version
 
 
 class Request(Message):
     _dialog_store = None
 
     def __init__(self, method, ruri, headers=None, content=None):
-        Message.__init__(self)
+        Message.__init__(self, headers, content)
         self.method = method
         self.ruri = ruri
-        self.headers = headers or Headers()
-        self.content = content
         self.dialog = None
         self._has_totag = None
         self._response_totag = None
@@ -117,22 +135,10 @@ class Request(Message):
             return False
         return True
 
-    @classmethod
-    def parse(cls, s):
-        if '\r\n\r\n' not in s:
-            raise MessageParsingError("Bad message (no CRLFCRLF found)")
-        head, content = s.split('\r\n\r\n', 1)
-        if not content:
-            content = None
-        r = head.split('\r\n', 1)
-        if len(r) == 1:
-            headers = None
-        else:
-            headers = Headers.parse(r[1])
-        request_line = r[0]
-        method, uri, version = request_line.split()
-        uri = URI.parse(uri)
-        return cls(method, uri, headers, content)
+    @staticmethod
+    def _parse_first_line(s):
+        method, uri, version = s.split()
+        return method, uri, version
 
     def __str__(self):
         r = []

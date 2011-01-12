@@ -111,3 +111,21 @@ class RequestTest(unittest.TestCase):
         aq(str(r.headers['record-route'][1].uri), 'sip:bigbox3.site3.atlanta.com;lr')
         aq(str(r), 'NOTIFY sip:echo@tipmeet.com SIP/2.0\r\nRecord-Route: <sip:server10.biloxi.com;lr>\r\nRecord-Route: <sip:bigbox3.site3.atlanta.com;lr>\r\n\r\n')
 
+    def test_response_parsing(self):
+        at = self.assertTrue
+        aq = self.assertEqual
+        r = Message.parse('SIP/2.0 200 OK\r\n\r\n')
+        at(isinstance(r, Response))
+        aq(r.code, 200)
+        aq(r.reason, 'OK')
+        r = Message.parse('SIP/2.0 100 Trying\r\nTo: Bob <sip:bob@biloxi.com>\r\nCSeq: 314159 INVITE\r\nContent-Length: 0\r\n\r\n')
+        aq(r.code, 100)
+        aq(r.reason, 'Trying')
+        aq(r.headers['t'].display_name, 'Bob')
+        aq(str(r.headers['t'].uri), 'sip:bob@biloxi.com')
+        aq(str(r.headers['t']), 'Bob <sip:bob@biloxi.com>')
+        aq(r.headers['cseq'], '314159 INVITE')
+        aq(r.headers['content-length'], '0')
+        r = Message.parse('SIP/2.0 180 Ringing\r\nContact: <sip:bob@192.0.2.4>\r\n\r\nblabla')
+        aq(str(r), 'SIP/2.0 180 Ringing\r\nContact: <sip:bob@192.0.2.4>\r\n\r\nblabla')
+
