@@ -134,7 +134,6 @@ class Request(Message):
         uri = URI.parse(uri)
         return cls(method, uri, headers, content)
 
-
     def __str__(self):
         r = []
         r.append('%s %s %s' % (self.method, self.ruri, self.version))
