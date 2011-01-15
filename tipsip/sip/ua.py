@@ -90,7 +90,7 @@ class SIPUA(object):
         self.transport.sendMessage(request, host, port)
         return d
 
-    def waitResponse(self, request, wait_finally=True):
+    def waitResponse(self, request, wait_finally=False):
         d = defer.Deferred()
         self._pending_requests[branch] = d
         self._pending_finally[branch] = wait_finally
