@@ -47,7 +47,10 @@ class PresenceService(object):
     def getStatus(self, resource):
         stats['presence_gotten_statuses'] += 1
         table = self._resourceTable(resource)
-        r = yield self.storage.hgetall(table)
+        try:
+            r = yield self.storage.hgetall(table)
+        except KeyError:
+            defer.returnValue([])
         statuses = [(tag, Status.parse(x)) for (tag,  x) in r.iteritems()]
         active, expired = self._splitExpiredStatuses(statuses)
         if expired:

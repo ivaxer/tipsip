@@ -39,8 +39,20 @@ class PresenceServerTest(unittest.TestCase):
 
     @defer.inlineCallbacks
     def test_getStatus(self):
+        aq = self.assertEqual
         yield self.presence.putStatus('ivaxer@tipmeet.com', {"status": "online"},  expires=3600, tag='forwarding', priority=10)
+        r = yield self.presence.getStatus('ivaxer@tipmeet.com')
+        aq(len(r), 1)
+        tag, status = r[0]
+        aq(tag, 'forwarding')
+        aq(status['presence'], {'status': 'online'})
         yield self.presence.removeStatus('ivaxer@tipmeet.com', 'forwarding')
+
+    @defer.inlineCallbacks
+    def test_getUnknownStatus(self):
+        aq = self.assertEqual
+        r = yield self.presence.getStatus('ivaxer@tipmeet.com')
+        aq(r, [])
 
     @defer.inlineCallbacks
     def test_statusLoadStore(self):
