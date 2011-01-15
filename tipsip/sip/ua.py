@@ -27,7 +27,8 @@ class SIPUA(object):
         self.dialog_store = dialog_store
         self.transport = transport
         transport.messageReceivedCallback = self.messageReceived
-        self._deferred_requests = {}
+        self._pending_requests = {}
+        self._pending_finally = {}
 
     def messageReceived(self, message):
         if type(message) == Request:
@@ -51,9 +52,14 @@ class SIPUA(object):
 
     def responseReceived(self, response):
         branch = response.headers['via'][0].params['branch']
-        d = self._deferred_requests.get(branch)
-        if d:
-            d.callback(response)
+        is_finally = response.code >= 200
+        if branch in self._pending_requests:
+            d = self._pending_requests[branch]
+            wait_finally = self._pending_finally[branch]
+            if is_finally or not wait_finally:
+                d.callback(response)
+                del self._pending_requests[branch]
+                del self._pending_finally[branch]
 
     @defer.inlineCallbacks
     def handleRequest(self, request):
@@ -65,7 +71,7 @@ class SIPUA(object):
     def handle_DEFAULT(self, request):
         raise SIPError(405, 'Method Not Allowed')
 
-    def sendRequest(self, request, addr=None):
+    def sendRequest(self, request, addr=None, wait_finally=True):
         self._createVia(request)
         route = request.headers.get('route')
         if route:
@@ -79,8 +85,15 @@ class SIPUA(object):
             d = self.dialog_store.incr_lcseq(request.dialog.id)
         d = defer.Deferred()
         branch = request.headers['via'][0].params['branch']
-        self._deferred_requests[branch] = d
+        self._pending_requests[branch] = d
+        self._pending_finally[branch] = wait_finally
         self.transport.sendMessage(request, host, port)
+        return d
+
+    def waitResponse(self, request, wait_finally=True):
+        d = defer.Deferred()
+        self._pending_requests[branch] = d
+        self._pending_finally[branch] = wait_finally
         return d
 
     def sendResponse(self, response):
