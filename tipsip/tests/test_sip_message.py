@@ -3,7 +3,7 @@ from twisted.internet import defer
 
 
 from tipsip.sip import Message, Request, Response
-from tipsip.sip import AddressHeader, ViaHeader
+from tipsip.sip import AddressHeader, ViaHeader, CSeqHeader
 from tipsip.sip import URI
 from tipsip.sip import MessageParsingError
 
@@ -24,14 +24,15 @@ class RequestTest(unittest.TestCase):
         req.headers['t'] = AddressHeader.parse("Echo <sip:echo@tipmeet.com>")
         req.headers['via'] = ViaHeader.parse("SIP/2.0/TCP 193.168.0.1:5061; received=10.10.10.10")
         req.headers['call-id'] = '1234@localhost'
-        req.headers['cseq'] = '1'
+        req.headers['cseq'] = CSeqHeader.parse('1 NOTIFY')
         r = req.createResponse('180', 'Ringing')
         aq(str(r.headers['from']), 'Carol <sip:carol@example.com> ;tag=abvgde123')
         aq(str(r.headers['To'].uri), 'sip:echo@tipmeet.com')
         aq(r.headers['To'].display_name, 'Echo')
         aq(str(r.headers['Via']), 'SIP/2.0/TCP 193.168.0.1:5061 ;received=10.10.10.10')
         aq(r.headers['Call-Id'], '1234@localhost')
-        aq(r.headers['CSeq'], '1')
+        aq(r.headers['CSeq'].number, 1)
+        aq(r.headers['CSeq'].method, 'NOTIFY')
         at('tag' in r.headers['To'].params)
         t1 = r.headers['to'].params['tag']
         at(isinstance(t1, basestring))
@@ -87,7 +88,8 @@ class RequestTest(unittest.TestCase):
         r = Message.parse("REGISTER sip:tipmeet.com SIP/2.0\r\nContact: *\r\nExpires: 0\r\n\r\n")
         at(isinstance(r, Request))
         aq(r.method, 'REGISTER')
-        aq(str(r.ruri), 'sip:tipmeet.com')
+        aq(r.ruri.host, 'tipmeet.com')
+        aq(r.ruri.scheme, 'sip')
         aq(r.headers['contact'], '*')
         aq(r.headers['expires'], '0')
         r = Message.parse('PUBLISH sip:resource@tipmeet.com SIP/2.0\r\nFrom: ivaxer <sip:echo@tipmeet.com> ;tag=123\r\n\r\n')
@@ -124,8 +126,11 @@ class RequestTest(unittest.TestCase):
         aq(r.headers['t'].display_name, 'Bob')
         aq(str(r.headers['t'].uri), 'sip:bob@biloxi.com')
         aq(str(r.headers['t']), 'Bob <sip:bob@biloxi.com>')
-        aq(r.headers['cseq'], '314159 INVITE')
+        aq(r.headers['cseq'].number, 314159)
+        aq(r.headers['cseq'].method, 'INVITE')
         aq(r.headers['content-length'], '0')
         r = Message.parse('SIP/2.0 180 Ringing\r\nContact: <sip:bob@192.0.2.4>\r\n\r\nblabla')
         aq(str(r), 'SIP/2.0 180 Ringing\r\nContact: <sip:bob@192.0.2.4>\r\n\r\nblabla')
+        r = Message.parse('SIP/2.0 481 Call/Transaction Does Not Exist\r\n\r\n')
+        aq(str(r), 'SIP/2.0 481 Call/Transaction Does Not Exist\r\n\r\n')
 

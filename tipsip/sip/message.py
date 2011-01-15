@@ -5,8 +5,8 @@ from copy import deepcopy
 from twisted.internet import defer
 
 from uri import URI
-from header import Headers, generate_tag
-from header import request_mandatory_headers
+from header import Headers, AddressHeader
+from header import generate_tag, request_mandatory_headers
 
 
 class MessageParsingError(Exception):
@@ -35,7 +35,7 @@ class Message(object):
         else:
             first_line, hdrs = head.split('\r\n', 1)
         headers = Headers.parse(hdrs)
-        r = first_line.split()
+        r = first_line.split(None, 2)
         if len(r) != 3:
             raise MessageParsingError("Bad first line: " + first_line)
         if r[0] == cls.version:
@@ -44,14 +44,10 @@ class Message(object):
             return Response(code, reason, headers, content)
         elif r[2] == cls.version:
             method = r[0]
-            uri = r[1]
+            uri = URI.parse(r[1])
             return Request(method, uri, headers, content)
         else:
             raise MessageParsingError("Bad first line: " + first_line)
-
-    @staticmethod
-    def _parse_first_line(s):
-        raise NotImplementedError("_parse_first_line must be implemented in child class")
 
 
 class Response(Message):
@@ -72,16 +68,8 @@ class Response(Message):
             msg += self.content
         return msg
 
-    @staticmethod
-    def _parse_first_line(s):
-        code, reason, version = s.split()
-        code = int(code)
-        return code, reason, version
-
 
 class Request(Message):
-    _dialog_store = None
-
     def __init__(self, method, ruri, headers=None, content=None):
         Message.__init__(self, headers, content)
         self.method = method
@@ -96,24 +84,12 @@ class Request(Message):
             response.headers[x] = deepcopy(self.headers[x])
         if not self.has_totag:
             response.headers['to'].params['tag'] = self.response_totag
-        # XXX: check that it's in-dialog responce
+        if self.dialog:
+            if 'record-route' in self.headers:
+                response.headers['record-route'] = self.headers['record-route']
+            contact_uri = URI.parse(self.dialog.local_target_uri)
+            response.headers['contact'] = AddressHeader(uri=contact_uri)
         return response
-
-    @defer.inlineCallbacks
-    def createDialog(self):
-        d = Dialog()
-        d.local_tag = self.response_totag
-        d.remote_tag = self.headers['from'].params['tag']
-        d.callid = self.headers['call-id']
-        d.local_cseq = 0
-        d.remote_cseq = int(self.headers['cseq'])
-        d.local_uri = str(self.headers['to'].uri)
-        d.remote_uri = str(self.headers['from'].uri)
-        iface = self.from_interface
-        d.local_target_uri = ''.join(['sip:', iface.host, ':', str(iface.port), ';transport=', iface.transport])
-        d.remote_target_uri = str(self.headers['contact'].uri)
-        self.dialog = d
-        yield self._dialog_store.add(d)
 
     @property
     def has_totag(self):
@@ -134,11 +110,6 @@ class Request(Message):
         if 'tag' not in self.headers['from'].params:
             return False
         return True
-
-    @staticmethod
-    def _parse_first_line(s):
-        method, uri, version = s.split()
-        return method, uri, version
 
     def __str__(self):
         r = []
