@@ -1,9 +1,7 @@
 # -*- coding: utf-8 -*-
 
-from random import choice
-from string import ascii_letters
-
 from uri import URI
+from utils import random_string
 
 # http://www.iana.org/assignments/sip-parameters
 name_to_compact = {
@@ -106,7 +104,7 @@ def name2compact(name):
     return name2norm(name)
 
 def generate_tag():
-    return "".join(choice(ascii_letters) for _ in xrange(7))
+    return random_string(7)
 
 
 class Header(object):
@@ -116,21 +114,32 @@ class Header(object):
 
     def __str__(self):
         r = []
-        r.append(value)
+        r.append(self.value)
         p = self._renderParams()
-        r.append(p)
-        return ''.join(r)
+        if p:
+            r.append(';' + p)
+        return ' '.join(r)
 
     def _renderParams(self):
-        return ';'.join('='.join(p) for p in self.params.items())
+        r = []
+        for k, v in self.params.items():
+            if v is None:
+                r.append(k)
+            else:
+                r.append(k + '=' + v)
+        return ';'.join(r)
 
     @staticmethod
     def _parse_params(s):
         params = {}
         for p in s.split(';'):
-            k, v = p.split('=')
+            if '=' in p:
+                k, v = p.split('=')
+                v = v.strip()
+            else:
+                k = p
+                v = None
             k = k.strip().lower()
-            v = v.strip()
             params[k] = v
         return params
 
@@ -201,11 +210,28 @@ class AddressHeader(Header):
         return dn, uri, rest
 
 
+class CSeqHeader(Header):
+    def __init__(self, number, method):
+        self.number = number
+        self.method = method
+
+    def __str__(self):
+        return ' '.join([str(self.number), self.method])
+
+    @classmethod
+    def parse(cls, s):
+        r = s.split()
+        if len(r) != 2:
+            raise ValueError("Bad CSeq header: " + s)
+        number = int(r[0])
+        method = r[1]
+        return cls(number, method)
+
 
 class ViaHeader(Header):
     version = 'SIP/2.0'
 
-    def __init__(self, transport, host, port=None, params=None, version='SIP/2.0'):
+    def __init__(self, transport=None, host=None, port=None, params=None, version='SIP/2.0'):
         self.transport = transport
         self.host = host
         self.port = port
@@ -314,6 +340,7 @@ class Headers(dict):
 
     @classmethod
     def parse(cls, s):
+        # XXX: this function bad and does not scale :)
         headers = cls()
         if not s:
             return headers
@@ -332,6 +359,8 @@ class Headers(dict):
                     else:
                         headers[name] = '*'
                         continue
+                elif name == 'cseq':
+                    hdr = CSeqHeader.parse(hdr)
                 elif name in address_headers:
                     hdr = AddressHeader.parse(hdr)
                 elif name == 'via':

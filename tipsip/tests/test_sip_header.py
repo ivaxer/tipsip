@@ -1,7 +1,7 @@
 from twisted.trial import unittest
 
 from tipsip.sip import Headers
-from tipsip.sip import AddressHeader, ViaHeader
+from tipsip.sip import Header, AddressHeader, ViaHeader
 
 
 class HeadersTest(unittest.TestCase):
@@ -30,6 +30,13 @@ class HeadersTest(unittest.TestCase):
         at(h.has_key('From'))
 
 
+class HeaderTest(unittest.TestCase):
+    def test_construct(self):
+        aq = self.assertEqual
+        at = self.assertTrue
+        h = Header('active', params={'expires': '3600'})
+        aq(str(h), 'active ;expires=3600')
+
 class AddressHeaderTest(unittest.TestCase):
     def test_parsing(self):
         aq = self.assertEqual
@@ -57,12 +64,19 @@ class ViaHeaderTest(unittest.TestCase):
 
     def test_parsing(self):
         aq = self.assertEqual
-        v = ViaHeader.parse('SIP/2.0/UDP pc33.atlanta.com;branch=z9hG4bK776asdhds')
+        at = self.assertTrue
+        v = ViaHeader.parse('SIP/2.0/UDP 127.0.0.1:21375;branch=z9hG4bK-d8754z-2f9c4f090fc81b1f-1---d8754z-;rport')
         aq(v.version, 'SIP/2.0')
         aq(v.transport, 'UDP')
-        aq(v.host, 'pc33.atlanta.com')
-        aq(v.port, None)
-        aq(v.params['branch'], 'z9hG4bK776asdhds')
+        aq(v.host, '127.0.0.1')
+        aq(v.port, '21375')
+        aq(v.params['branch'], 'z9hG4bK-d8754z-2f9c4f090fc81b1f-1---d8754z-')
+        at('rport' in v.params)
         v = ViaHeader.parse('SIP/2.0/UDP pc33.atlanta.com:5066;branch=z9hG4bK776asdhds')
         aq(v.port, '5066')
+
+    def test_serialize(self):
+        aq = self.assertEqual
+        v = ViaHeader.parse('SIP/2.0/UDP 127.0.0.1:21375;rport')
+        aq(str(v), 'SIP/2.0/UDP 127.0.0.1:21375 ;rport')
 
