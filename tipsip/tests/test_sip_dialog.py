@@ -9,25 +9,9 @@ class DialogStoreTest(unittest.TestCase):
         self.store = DialogStore(MemoryStorage())
 
     @defer.inlineCallbacks
-    def test_general(self):
+    def test_putget(self):
         aq = self.assertEqual
-        d = Dialog()
-        d.local_tag = "321egvba"
-        d.remote_tag = "abvge123"
-        d.callid = "abacaba@localhost"
-        yield self.store.add(d)
-        rd = yield self.store.find(d.id)
-        aq(d.local_tag, rd.local_tag)
-        aq(d.remote_tag, rd.remote_tag)
-        aq(d.callid, rd.callid)
-        yield self.store.remove(rd.id)
-        rd = yield self.store.find(d.id)
-        aq(rd, None)
-
-
-class DialogTest(unittest.TestCase):
-    def test_serialization(self):
-        aq = self.assertEqual
+        at = self.assertTrue
         d = Dialog()
         d.local_tag = "321egvba"
         d.remote_tag = "abvge123"
@@ -38,7 +22,10 @@ class DialogTest(unittest.TestCase):
         d.remote_uri = "carol@example.org"
         d.local_target_uri = "sip:john@192.168.1.1"
         d.remote_target_uri = "sip:carol@10.10.10.10"
-        rd = Dialog.parse(d.serialize())
+        d.secure = True
+        d.route_set = ['<sip:proxy1>', '<sip:proxy2>']
+        yield self.store.put(d)
+        rd = yield self.store.get(d.id)
         aq(d.local_tag, rd.local_tag)
         aq(d.remote_tag, rd.remote_tag)
         aq(d.callid, rd.callid)
@@ -48,4 +35,10 @@ class DialogTest(unittest.TestCase):
         aq(d.remote_uri, rd.remote_uri)
         aq(d.local_target_uri, rd.local_target_uri)
         aq(d.remote_target_uri, rd.remote_target_uri)
+        at(d.secure)
+        aq(d.route_set, ['<sip:proxy1>', '<sip:proxy2>'])
+
+    # XXX: implement
+    def test_incr_cseq(self):
+        pass
 
