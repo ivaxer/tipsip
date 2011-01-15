@@ -13,12 +13,14 @@ class StorageTestCase(object):
     @defer.inlineCallbacks
     def test_hget_unknown(self):
         yield self.storage.hset("table", "test", "1")
-        d1 = self.storage.hget("table", "cadabra")
-        d2 = self.storage.hget("cadabra", "cadabra")
-        d1.addErrback(lambda f: f.trap(KeyError))
-        d2.addErrback(lambda f: f.trap(KeyError))
-        yield d1
-        yield d2
+        try:
+            yield self.storage.hget("table", "cadabra")
+        except KeyError:
+            pass
+        try:
+            yield self.storage.hget("cadabra", "cadabra")
+        except KeyError:
+            pass
 
     @defer.inlineCallbacks
     def test_hsetngetall(self):
@@ -29,9 +31,10 @@ class StorageTestCase(object):
 
     @defer.inlineCallbacks
     def test_hgetall_unknown(self):
-        d = self.storage.hgetall("cadabra")
-        d.addErrback(lambda f: f.trap(KeyError))
-        yield d
+        try:
+            yield self.storage.hgetall("cadabra")
+        except KeyError:
+            pass
 
     @defer.inlineCallbacks
     def test_hdel(self):
@@ -41,12 +44,14 @@ class StorageTestCase(object):
     @defer.inlineCallbacks
     def test_hdel_unknown(self):
         yield self.storage.hset("table", "field", "1")
-        d1 = self.storage.hdel("table", "cadabra")
-        d2 = self.storage.hdel("cadabra", "cadabra")
-        d1.addErrback(lambda f: f.trap(KeyError))
-        d2.addErrback(lambda f: f.trap(KeyError))
-        yield d1
-        yield d2
+        try:
+            yield self.storage.hdel("table", "cadabra")
+        except KeyError:
+            pass
+        try:
+            yield self.storage.hdel("cadabra", "cadabra")
+        except KeyError:
+            pass
 
     @defer.inlineCallbacks
     def test_saddgetall(self):
@@ -60,15 +65,33 @@ class StorageTestCase(object):
     @defer.inlineCallbacks
     def test_srem_unknown(self):
         yield self.storage.sadd("set", "item")
-        d = self.storage.srem("set", "cadabra")
-        d.addErrback(lambda f: f.trap(KeyError))
-        yield d
+        try:
+            yield self.storage.srem("set", "cadabra")
+        except KeyError:
+            pass
 
     @defer.inlineCallbacks
     def test_sgetall_unknown(self):
-        d = self.storage.sgetall("cadabra")
-        d.addErrback(lambda f: f.trap(KeyError))
-        yield d
+        try:
+            yield self.storage.sgetall("cadabra")
+        except KeyError:
+            pass
+
+    # XXX: implement
+    def test_hincr(self):
+        pass
+
+    # XXX: implement
+    def test_hincr_unknown(self):
+        pass
+
+    # XXX: implement
+    def test_drop(self):
+        pass
+
+    # XXX: implement
+    def test_drop_unknown(self):
+        pass
 
 class MemoryStorageTest(StorageTestCase, unittest.TestCase):
     def setUp(self):

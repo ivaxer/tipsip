@@ -46,6 +46,12 @@ class RedisStorage(object):
         if r == 0:
             raise KeyError("Table '%s' or field '%s' not found" % (table, field))
 
+    def hincr(self, table, field, value):
+        raise NotImplementedError
+
+    def hdrop(self, table):
+        raise NotImplementedError
+
     @defer.inlineCallbacks
     def sadd(self, s, item):
         r = yield self.redis.sadd(s, item)
@@ -62,4 +68,7 @@ class RedisStorage(object):
         if r == 0:
             raise KeyError("Set '%s' not found" % (s,))
         defer.returnValue(r)
+
+    def sdrop(self, s):
+        raise NotImplementedError
 

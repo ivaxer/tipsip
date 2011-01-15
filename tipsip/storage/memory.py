@@ -7,14 +7,18 @@ from twisted.internet import defer
 
 class MemoryStorage(object):
     def __init__(self):
-        self.htables = defaultdict(dict)
+        self.htables = {}
         self.sets = defaultdict(set)
 
     def hset(self, table, field, value):
+        if table not in self.htables:
+            self.htables[table] = {}
         self.htables[table][field] = value
         return defer.succeed(0)
 
     def hsetn(self, table, items):
+        if table not in self.htables:
+            self.htables[table] = {}
         self.htables[table].update(items)
         return defer.succeed(0)
 
@@ -39,6 +43,20 @@ class MemoryStorage(object):
             return defer.fail( KeyError("Table '%s' or field '%s' not found" % (table, field)) )
         return defer.succeed(0)
 
+    def hincr(self, table, field, value):
+        try:
+            self.htables[table][field] += value
+        except KeyError:
+            return defer.fail( KeyError("Table '%s' or field '%s' not found" % (table, field)) )
+        return defer.succeed(self.htables[table][field])
+
+    def hdrop(self, table):
+        try:
+            self.htables.pop(table)
+        except KeyError:
+            return defer.fail( KeyError("Table '%s' not found" % table) )
+        return defer.succeed(0)
+
     def sadd(self, s, item):
         self.sets[s].add(item)
         return defer.succeed(0)
@@ -60,4 +78,11 @@ class MemoryStorage(object):
         except KeyError:
             return defer.fail( KeyError("Set '%s' not found" % (s,)) )
         return defer.succeed(r)
+
+    def sdrop(self, s):
+        try:
+            self.sets.pop(table)
+        except KeyError:
+            return defer.fail( KeyError("Set '%s' not found" % s) )
+        return defer.succeed(0)
 
