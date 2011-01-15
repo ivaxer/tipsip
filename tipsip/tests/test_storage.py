@@ -17,10 +17,15 @@ class StorageTestCase(object):
             yield self.storage.hget("table", "cadabra")
         except KeyError:
             pass
+        else:
+            self.fail("KeyError not raised")
+
         try:
             yield self.storage.hget("cadabra", "cadabra")
         except KeyError:
             pass
+        else:
+            self.fail("KeyError not raised")
 
     @defer.inlineCallbacks
     def test_hsetngetall(self):
@@ -35,6 +40,8 @@ class StorageTestCase(object):
             yield self.storage.hgetall("cadabra")
         except KeyError:
             pass
+        else:
+            self.fail("KeyError not raised")
 
     @defer.inlineCallbacks
     def test_hdel(self):
@@ -48,10 +55,15 @@ class StorageTestCase(object):
             yield self.storage.hdel("table", "cadabra")
         except KeyError:
             pass
+        else:
+            self.fail("KeyError not raised")
+
         try:
             yield self.storage.hdel("cadabra", "cadabra")
         except KeyError:
             pass
+        else:
+            self.fail("KeyError not raised")
 
     @defer.inlineCallbacks
     def test_saddgetall(self):
@@ -69,6 +81,8 @@ class StorageTestCase(object):
             yield self.storage.srem("set", "cadabra")
         except KeyError:
             pass
+        else:
+            self.fail("KeyError not raised")
 
     @defer.inlineCallbacks
     def test_sgetall_unknown(self):
