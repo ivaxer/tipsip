@@ -8,6 +8,18 @@ from twisted.internet import reactor, defer
 
 from tipsip import stats
 
+def aggregate_status(statuses):
+    max_priority = None
+    aggr_presence = {'status': 'offline'}
+    for tag, status in statuses:
+        cur_priority = status['priority']
+        if cur_priority > max_priority:
+            max_priority = cur_priority
+            aggr_presence = status['presence']
+        elif max_priority == cur_priority and aggr_presence and aggr_presence['status'] == 'offline' and status['presence']['status'] == 'online':
+            aggr_presence = status['presence']
+    return {'presence': aggr_presence}
+
 class Status(dict):
     def __init__(self, pdoc, expiresat, priority):
         self['presence'] = pdoc
@@ -84,6 +96,7 @@ class PresenceService(object):
             self._log('Storage error: %s' % (e,))
             r = 'Not found'
         self._cancelStatusTimer(resource, tag)
+        yield self._notifyWatchers(resource)
         defer.returnValue(r)
 
     def watch(self, callback, *args, **kwargs):
@@ -149,7 +162,7 @@ class PresenceService(object):
     def _notifyWatchers(self, resource):
         status = yield self.getStatus(resource)
         for callback, arg, kw in self._callbacks:
-            callback(resource, status, *args, **kw)
+            callback(resource, status, *arg, **kw)
 
     def _resourceTable(self, resource):
         return 'res:' + resource

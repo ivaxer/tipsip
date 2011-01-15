@@ -5,7 +5,8 @@ import json
 from twisted.internet import defer
 from twisted.web import resource, server
 
-from tipsip import stats, utils
+from tipsip import stats
+from tipsip import aggregate_status
 
 from twisted.python import log
 
@@ -54,12 +55,12 @@ class HTTPPresence(resource.Resource):
     def getStatus(self, write, finish, resource):
         def reply(status):
             res = {'status': 'ok', 'reason': 'success'}
-            res['presence'] = status
+            res['result'] = status
             write(json.dumps(res))
             finish()
 
         d = self.presence.getStatus(resource)
-        d.addCallback(utils.aggregated_presence)
+        d.addCallback(aggregate_status)
         d.addCallback(reply)
         return server.NOT_DONE_YET
 
@@ -67,8 +68,9 @@ class HTTPPresence(resource.Resource):
         def reply(r):
             result = {}
             for res, status in r.items():
-                result[res] = utils.aggregated_presence(status)
-            write(json.dumps({'status': 'ok', 'reason': 'Successfully dumped', 'resources': result}))
+                result[res] = {}
+                result[res] = aggregate_status(status)
+            write(json.dumps({'status': 'ok', 'reason': 'Successfully dumped', 'result': result}))
             finish()
 
         d = self.presence.dumpStatuses()
@@ -77,7 +79,8 @@ class HTTPPresence(resource.Resource):
 
     def putStatus(self, write, finish, resource, content, tag=None):
         def reply(tag):
-            r = json.dumps({'reason': 'Status added', 'status': 'ok', 'tag': tag})
+            result = {'tag': tag}
+            r = json.dumps({'reason': 'Status added', 'status': 'ok', 'result': result})
             write(r)
             finish()
 
