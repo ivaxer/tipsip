@@ -47,7 +47,7 @@ class URITest(unittest.TestCase):
         uri = URI.parse('sips:example.com:5060')
         aq(uri.scheme, 'sips')
         aq(uri.host, 'example.com')
-        aq(uri.port, '5060')
+        aq(uri.port, 5060)
 
     def test_constructing(self):
         aq = self.assertEqual
