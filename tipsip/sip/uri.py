@@ -1,7 +1,11 @@
 # -*- coding: utf-8 -*-
 
 class URI(object):
+    DEFAULT_SCHEME = 'sip'
+
     def __init__(self, scheme=None, user=None, host=None, port=None, lr=None, params=None, headers=None):
+        if not scheme:
+            scheme = self.DEFAULT_SCHEME
         self.scheme = scheme
         self.user = user
         self.host = host
@@ -27,7 +31,7 @@ class URI(object):
             uri.append(self.user + '@')
         uri.append(self.host)
         if self.port:
-            uri.append(':' + self.port)
+            uri.append(':' + str(self.port))
         if parameters:
             uri.append(';' + parameters)
         if headers:
@@ -67,6 +71,7 @@ class URI(object):
 
         if ':' in hostport:
             host, port = hostport.split(':', 1)
+            port = int(port)
         else:
             host = hostport
             port = None
