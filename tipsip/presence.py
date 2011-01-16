@@ -59,10 +59,16 @@ class PresenceService(object):
 
     @defer.inlineCallbacks
     def getStatus(self, resource):
+    @defer.inlineCallbacks
+    def getStatus(self, resource, tag=None):
         stats['presence_gotten_statuses'] += 1
         table = self._resourceTable(resource)
         try:
-            r = yield self.storage.hgetall(table)
+            if tag:
+                r = yield self.storage.hget(table, tag)
+                r = {tag: r}
+            else:
+                r = yield self.storage.hgetall(table)
         except KeyError:
             defer.returnValue([])
         statuses = [(tag, Status.parse(x)) for (tag,  x) in r.iteritems()]
