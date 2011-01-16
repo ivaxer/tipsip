@@ -58,7 +58,19 @@ class PresenceService(object):
         defer.returnValue(tag)
 
     @defer.inlineCallbacks
-    def getStatus(self, resource):
+    def updateStatus(self, resource, tag, expires):
+        stats['presence_updated_statuses'] += 1
+        r = yield self.getStatus(resource, tag)
+        if r:
+            _, status = r[0]
+        else:
+            defer.returnValue('not_found')
+        expiresat = expires + utils.seconds()
+        status['expiresat'] = expiresat
+        table = self._resourceTable(resource)
+        yield self.storage.hset(table, tag, status.serialize())
+        self._setStatusTimer(resource, tag, expires)
+
     @defer.inlineCallbacks
     def getStatus(self, resource, tag=None):
         stats['presence_gotten_statuses'] += 1
