@@ -81,7 +81,7 @@ class URI(object):
         if parameters:
             lr = None
             for param in parameters.split(';'):
-                if param == 'lr':
+                if param == 'lr' or param.startswith('lr='):
                     lr = True
                     continue
                 if '=' not in param:
