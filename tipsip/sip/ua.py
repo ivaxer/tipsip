@@ -80,7 +80,7 @@ class SIPUA(object):
         else:
             host, port = request.ruri.host, request.ruri.port
         if not port:
-            port = DEFAULT_UDP_PORT
+            port = self.DEFAULT_UDP_PORT
         if request.dialog:
             d = self.dialog_store.incr_lcseq(request.dialog.id)
         d = defer.Deferred()
