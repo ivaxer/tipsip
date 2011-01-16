@@ -31,7 +31,7 @@ class MemoryStorage(object):
 
     def hgetall(self, table):
         try:
-            r = self.htables[table]
+            r = self.htables[table].copy()
         except KeyError:
             return defer.fail( KeyError("Table '%s' not found" % (table,)) )
         return defer.succeed(r)
@@ -74,7 +74,7 @@ class MemoryStorage(object):
 
     def sgetall(self, s):
         try:
-            r = self.sets[s]
+            r = self.sets[s].copy()
         except KeyError:
             return defer.fail( KeyError("Set '%s' not found" % (s,)) )
         return defer.succeed(r)
