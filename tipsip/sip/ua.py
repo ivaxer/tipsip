@@ -120,6 +120,9 @@ class SIPUA(object):
         ifc = r.from_interface
         d.local_target_uri = ''.join(['sip:', ifc.host, ':', str(ifc.port), ' ;transport=', ifc.transport])
         d.remote_target_uri = str(r.headers['contact'][0].uri)
+        if 'record-route' in request.headers:
+            rr = request.headers['record-route']
+            d.route_set = [str(hdr) for hdr in rr]
         yield self.dialog_store.put(d)
         r.dialog = d
         defer.returnValue(d)
