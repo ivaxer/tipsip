@@ -45,7 +45,7 @@ class Dialog(object):
 
     def createRequest(self, method):
         if self.route_set:
-            route = route_set[:]
+            route = self.route_set[:]
             first_route = AddressHeader.parse(self.route_set[0])
             if not first_route.uri.lr:
                 ruri = first_route.uri
@@ -104,5 +104,5 @@ class DialogStore(object):
         yield self.storage.hincr(table, 'remote_cseq', 1)
 
     def _table(self, id):
-        return 'sys:dialogs' + ':'.join(id)
+        return 'sys:dialogs:' + ':'.join(id)
 
