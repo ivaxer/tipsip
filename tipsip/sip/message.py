@@ -49,6 +49,13 @@ class Message(object):
         else:
             raise MessageParsingError("Bad first line: " + first_line)
 
+    def makeContentLength(self):
+        if self.content:
+            length = len(self.content)
+        else:
+            length = 0
+        self.headers['l'] = str(length)
+
 
 class Response(Message):
     def __init__(self, code, reason, headers=None, content=None):
@@ -59,6 +66,8 @@ class Response(Message):
     def __str__(self):
         r = []
         r.append('%s %s %s' % (self.version, self.code, self.reason))
+        if 'content-length' not in self.headers:
+            self.makeContentLength()
         hdrs = str(self.headers)
         if hdrs:
             r.append(hdrs)
@@ -114,6 +123,8 @@ class Request(Message):
     def __str__(self):
         r = []
         r.append('%s %s %s' % (self.method, self.ruri, self.version))
+        if 'content-length' not in self.headers:
+            self.makeContentLength()
         hdrs = str(self.headers)
         if hdrs:
             r.append(hdrs)
