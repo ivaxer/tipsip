@@ -132,10 +132,6 @@ class SIPPresence(SIPUA):
         h['subscription-state'] = Header(status, {'expires': str(expires)})
         h['content-type'] = 'application/pidf+xml'
         h['Event'] = 'presence'
-        if pidf is None:
-            h['content-length'] = '0'
-        else:
-            h['content-length'] = str(len(pidf))
-            notify.content = pidf
+        notify.content = pidf
         yield self.sendRequest(notify)
 
