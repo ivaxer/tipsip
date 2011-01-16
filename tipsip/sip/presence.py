@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 
+import re
 from collections import defaultdict
 
 from twisted.internet import reactor, defer
@@ -32,6 +33,11 @@ def status2pidf(resource, statuses):
 
 
 class SIPPresence(SIPUA):
+    DEFAULT_PUBLISH_EXPIRES = 3600
+    MIN_PUBLISH_EXPIRES = 60
+
+    online_re = re.compile('.*<status><basic>open</basic></status>.*')
+
     def __init__(self, dialog_store, transport, presence_service):
         SIPUA.__init__(self, dialog_store, transport)
         presence_service.watch(self.statusChangedCallback)
@@ -40,8 +46,50 @@ class SIPPresence(SIPUA):
         self.resource_by_watcher = {}
         self.watcher_expires_tid = {}
 
+    @defer.inlineCallbacks
     def handle_PUBLISH(self, publish):
-        raise NotImplementedError
+        resource = publish.ruri.user + '@' + publish.ruri.host
+        expires = publish.headers.get('expires', self.DEFAULT_PUBLISH_EXPIRES)
+        expires = int(expires)
+        pidf = publish.content
+        tag = publish.headers.get('SIP-If-Match')
+        if publish.headers.get('Event') != 'presence':
+            response = publish.createResponse(489, 'Bad Event')
+            response.headers['allow-event'] = 'presence'
+            self.sendResponse(response)
+            defer.returnValue(None)
+        if  pidf and publish.headers.get('content-type') != 'application/pidf+xml':
+            response = publish.createResponse(415, 'Unsupported Media Type')
+            response.headers['accept'] = 'application/pidf+xml'
+            self.sendResponse(response)
+            defer.returnValue(None)
+        if expires and expires < self.MIN_PUBLISH_EXPIRES:
+            raise SIPError(423, 'Interval Too Brief')
+
+        if expires == 0:
+            r = yield self.presence_service.removeStatus(resource, tag)
+            if r == 'not_found':
+                raise SIPError(412, 'Conditional Request Failed')
+        elif tag:
+            r = yield self.presence_service.updateStatus(resource, tag, expires)
+            if r == 'not_found':
+                raise SIPError(412, 'Conditional Request Failed')
+        else:
+            tag = yield self.putStatus(resource, pidf, expires, tag)
+        response = publish.createResponse(200, 'OK')
+        response.headers['SIP-ETag'] = tag
+        response.headers['Expires'] = str(expires)
+        self.sendResponse(response)
+
+    @defer.inlineCallbacks
+    def putStatus(self, resource, pidf, expires, tag):
+        pidf = ''.join(pidf.split())
+        if self.online_re.match(pidf):
+            presence = {'status': 'online'}
+        else:
+            presence = {'status': 'offline'}
+        tag = yield self.presence_service.putStatus(resource, presence, expires, tag=tag)
+        defer.returnValue(tag)
 
     def handle_REGISTER(self, register):
         r = register.createResponse(200, 'OK')
