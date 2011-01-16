@@ -111,13 +111,13 @@ class PresenceService(object):
             if not statuses:
                 rset = self._resourcesSet()
                 yield self.storage.srem(rset, resource)
-            r = 'Status removed'
         except KeyError, e:
             self._log('Storage error: %s' % (e,))
-            r = 'Not found'
+            self._cancelStatusTimer(resource, tag)
+            defer.returnValue("not_found")
         self._cancelStatusTimer(resource, tag)
         yield self._notifyWatchers(resource)
-        defer.returnValue(r)
+        defer.returnValue("ok")
 
     def watch(self, callback, *args, **kwargs):
         self._callbacks.append((callback, args, kwargs))
