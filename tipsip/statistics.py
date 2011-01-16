@@ -14,6 +14,7 @@ class Statistics(dict):
         self['presence_gotten_statuses'] = 0
         self['presence_dumped_statuses'] = 0
         self['presence_removed_statuses'] = 0
+        self['presence_updated_statuses'] = 0
         self['presence_active_timers'] = 0
 
     def update_uptime(self):
