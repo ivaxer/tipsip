@@ -70,24 +70,23 @@ class SIPPresence(SIPUA):
         expires = int(subscribe.headers['Expires'])
         if not expires and subscribe.dialog:
             watcher = subscribe.dialog.id
-            status = 'terminated'
+            yield self.notifyWatcher(watcher, status='terminated', expires=0)
             self.removeWatcher(watcher)
         elif subscribe.dialog:
             watcher = subscribe.dialog.id
-            status = 'active'
             self.updateWatcher(watcher, expires)
+            self.notifyWatcher(watcher, status='active', expires=expires, dialog=subscribe.dialog)
         else:
             if not subscribe.ruri.user:
                 raise SIPError(404, 'Bad resource URI')
             resource = subscribe.ruri.user + '@' + subscribe.ruri.host
             yield self.createDialog(subscribe)
             watcher = subscribe.dialog.id
-            status = 'active'
             self.addWatcher(watcher, resource, expires)
+            self.notifyWatcher(watcher, status='active', expires=expires, dialog=subscribe.dialog)
         response = subscribe.createResponse(200, 'OK')
         response.headers['Expires'] = str(expires)
         self.sendResponse(response)
-        self.notifyWatcher(watcher)
 
     def addWatcher(self, watcher, resource, expires):
         self.watchers_by_resource[resource].append(watcher)
