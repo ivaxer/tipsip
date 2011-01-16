@@ -22,6 +22,7 @@ def aggregate_status(statuses):
 
 class Status(dict):
     def __init__(self, pdoc, expiresat, priority):
+        dict.__init__(self)
         self['presence'] = pdoc
         self['expiresat'] = expiresat
         self['priority'] = priority
@@ -29,9 +30,10 @@ class Status(dict):
     def serialize(self):
         return json.dumps(self)
 
-    @staticmethod
-    def parse(s):
-        return json.loads(s)
+    @classmethod
+    def parse(cls, s):
+        r = json.loads(s)
+        return cls(r['presence'], r['expiresat'], r['priority'])
 
 class PresenceService(object):
     def __init__(self, storage):
