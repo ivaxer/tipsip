@@ -1,200 +1,184 @@
 # -*- coding: utf-8 -*-
 
-import json
-
-import utils
+import re
+from collections import defaultdict
 
 from twisted.internet import reactor, defer
 
-from tipsip import stats
+from tipsip import aggregate_status
+from ua import SIPUA, SIPError
+from header import Header
 
-def aggregate_status(statuses):
-    max_priority = None
-    aggr_presence = {'status': 'offline'}
-    for tag, status in statuses:
-        cur_priority = status['priority']
-        if cur_priority > max_priority:
-            max_priority = cur_priority
-            aggr_presence = status['presence']
-        elif max_priority == cur_priority and aggr_presence and aggr_presence['status'] == 'offline' and status['presence']['status'] == 'online':
-            aggr_presence = status['presence']
-    return {'presence': aggr_presence}
 
-class Status(dict):
-    def __init__(self, pdoc, expiresat, priority):
-        dict.__init__(self)
-        self['presence'] = pdoc
-        self['expiresat'] = expiresat
-        self['priority'] = priority
+s2p = {
+        'online':   'open',
+        'offline':  'closed',
+        }
 
-    def serialize(self):
-        return json.dumps(self)
+def status2pidf(resource, statuses):
+    pidf = []
+    a = pidf.append
+    status = aggregate_status(statuses)
+    a('<?xml version="1.0" encoding="UTF-8"?>')
+    a('<presence xmlns="urn:ietf:params:xml:ns:pidf" entity="pres:%s">' % resource)
+    s = s2p[status['presence']['status']]
+    a('\t<tuple id="%s">' % resource)
+    a('\t\t<status>')
+    a('\t\t\t<basic>%s</basic>' % s)
+    a('\t\t</status>')
+    a('\t\t<contact>sip:%s</contact>' % resource)
+    a('\t</tuple>')
+    a('</presence>')
+    return '\n'.join(pidf)
 
-    @classmethod
-    def parse(cls, s):
-        r = json.loads(s)
-        return cls(r['presence'], r['expiresat'], r['priority'])
 
-class PresenceService(object):
-    def __init__(self, storage):
-        self.storage = storage
-        self._callbacks = []
-        self._status_timers = {}
+class SIPPresence(SIPUA):
+    DEFAULT_PUBLISH_EXPIRES = 3600
+    MIN_PUBLISH_EXPIRES = 60
+
+    online_re = re.compile('.*<status><basic>open</basic></status>.*')
+
+    def __init__(self, dialog_store, transport, presence_service):
+        SIPUA.__init__(self, dialog_store, transport)
+        presence_service.watch(self.statusChangedCallback)
+        self.presence_service = presence_service
+        self.watchers_by_resource = defaultdict(list)
+        self.resource_by_watcher = {}
+        self.watcher_expires_tid = {}
 
     @defer.inlineCallbacks
-    def putStatus(self, resource, pdoc, expires, priority=0, tag=None):
-        stats['presence_put_statuses'] += 1
-        if not tag:
-            tag = utils.random_str(10)
-        expiresat = expires + utils.seconds()
-        table = self._resourceTable(resource)
-        rset = self._resourcesSet()
-        status = Status(pdoc, expiresat, priority)
-        d1 = self.storage.hset(table, tag, status.serialize())
-        d2 = self.storage.sadd(rset, resource)
-        d3 = self._notifyWatchers(resource)
-        yield defer.DeferredList([d1, d2, d3])
-        self._setStatusTimer(resource, tag, expires)
+    def handle_PUBLISH(self, publish):
+        resource = publish.ruri.user + '@' + publish.ruri.host
+        expires = publish.headers.get('expires', self.DEFAULT_PUBLISH_EXPIRES)
+        expires = int(expires)
+        pidf = publish.content
+        tag = publish.headers.get('SIP-If-Match')
+        if publish.headers.get('Event') != 'presence':
+            response = publish.createResponse(489, 'Bad Event')
+            response.headers['allow-event'] = 'presence'
+            self.sendResponse(response)
+            defer.returnValue(None)
+        if  pidf and publish.headers.get('content-type') != 'application/pidf+xml':
+            response = publish.createResponse(415, 'Unsupported Media Type')
+            response.headers['accept'] = 'application/pidf+xml'
+            self.sendResponse(response)
+            defer.returnValue(None)
+        if expires and expires < self.MIN_PUBLISH_EXPIRES:
+            raise SIPError(423, 'Interval Too Brief')
+
+        if expires == 0:
+            r = yield self.presence_service.removeStatus(resource, tag)
+            if r == 'not_found':
+                raise SIPError(412, 'Conditional Request Failed')
+        elif tag:
+            r = yield self.presence_service.updateStatus(resource, tag, expires)
+            if r == 'not_found':
+                raise SIPError(412, 'Conditional Request Failed')
+        else:
+            tag = yield self.putStatus(resource, pidf, expires, tag)
+        response = publish.createResponse(200, 'OK')
+        response.headers['SIP-ETag'] = tag
+        response.headers['Expires'] = str(expires)
+        self.sendResponse(response)
+
+    @defer.inlineCallbacks
+    def putStatus(self, resource, pidf, expires, tag):
+        pidf = ''.join(pidf.split())
+        if self.online_re.match(pidf):
+            presence = {'status': 'online'}
+        else:
+            presence = {'status': 'offline'}
+        tag = yield self.presence_service.putStatus(resource, presence, expires, tag=tag)
         defer.returnValue(tag)
 
+    def handle_REGISTER(self, register):
+        r = register.createResponse(200, 'OK')
+        r.headers['expires'] = '3600'
+        self.sendResponse(r)
+
     @defer.inlineCallbacks
-    def updateStatus(self, resource, tag, expires):
-        stats['presence_updated_statuses'] += 1
-        r = yield self.getStatus(resource, tag)
-        if r:
-            _, status = r[0]
+    def handle_SUBSCRIBE(self, subscribe):
+        if subscribe.headers.get('Event') != 'presence':
+            response = subscribe.createResponse(489, 'Bad Event')
+            response.headers['allow-event'] = 'presence'
+            self.sendResponse(response)
+        elif not subscribe.dialog and subscribe.has_totag:
+            raise SIPError(404, 'Not Here')
         else:
-            defer.returnValue('not_found')
-        expiresat = expires + utils.seconds()
-        status['expiresat'] = expiresat
-        table = self._resourceTable(resource)
-        yield self.storage.hset(table, tag, status.serialize())
-        self._setStatusTimer(resource, tag, expires)
+            yield self.processSubscription(subscribe)
+
+    def statusChangedCallback(self, resource, status):
+        if resource not in self.watchers_by_resource:
+            return
+        for watcher in self.watchers_by_resource[resource]:
+            self.notifyWatcher(watcher)
 
     @defer.inlineCallbacks
-    def getStatus(self, resource, tag=None):
-        stats['presence_gotten_statuses'] += 1
-        table = self._resourceTable(resource)
-        try:
-            if tag:
-                r = yield self.storage.hget(table, tag)
-                r = {tag: r}
-            else:
-                r = yield self.storage.hgetall(table)
-        except KeyError:
-            defer.returnValue([])
-        statuses = [(tag, Status.parse(x)) for (tag,  x) in r.iteritems()]
-        active, expired = self._splitExpiredStatuses(statuses)
-        if expired:
-            self._log("Expired statuses of resource '%s' found: %s" % (resource, expired))
-            for tag, _ in expired:
-                self.removeStatus(resource, tag)
-        defer.returnValue(active)
-
-    @defer.inlineCallbacks
-    def dumpStatuses(self):
-        stats['presence_dumped_statuses'] += 1
-        rset = self._resourcesSet()
-        all_resources = yield self.storage.sgetall(rset)
-        result = {}
-        for resource in all_resources:
-            result[resource] = yield self.getStatus(resource)
-        defer.returnValue(result)
-
-    @defer.inlineCallbacks
-    def removeStatus(self, resource, tag):
-        stats['presence_removed_statuses'] += 1
-        table = self._resourceTable(resource)
-        try:
-            yield self.storage.hdel(table, tag)
-            statuses = yield self.storage.hgetall(table)
-            if not statuses:
-                rset = self._resourcesSet()
-                yield self.storage.srem(rset, resource)
-        except KeyError, e:
-            self._log('Storage error: %s' % (e,))
-            self._cancelStatusTimer(resource, tag)
-            defer.returnValue("not_found")
-        self._cancelStatusTimer(resource, tag)
-        yield self._notifyWatchers(resource)
-        defer.returnValue("ok")
-
-    def watch(self, callback, *args, **kwargs):
-        self._callbacks.append((callback, args, kwargs))
-
-    def _splitExpiredStatuses(self, statuses):
-        active = []
-        expired = []
-        cur_time = utils.seconds()
-        for tag, status in statuses:
-            if status['expiresat'] < cur_time:
-                expired.append((tag, status))
-            else:
-                active.append((tag, status))
-        return active, expired
-
-    def _setStatusTimer(self, resource, tag, delay):
-        if (resource, tag) in self._status_timers:
-            self._status_timers[resource, tag].reset(delay)
+    def processSubscription(self, subscribe):
+        expires = int(subscribe.headers['Expires'])
+        if not expires and subscribe.dialog:
+            watcher = subscribe.dialog.id
+            yield self.notifyWatcher(watcher, status='terminated', expires=0)
+            self.removeWatcher(watcher)
+        elif subscribe.dialog:
+            watcher = subscribe.dialog.id
+            self.updateWatcher(watcher, expires)
+            self.notifyWatcher(watcher, status='active', expires=expires, dialog=subscribe.dialog)
         else:
-            stats['presence_active_timers'] += 1
-            self._status_timers[resource, tag] = reactor.callLater(delay, self.removeStatus, resource, tag)
-        self._storeStatusTimer(resource, tag, delay)
+            if not subscribe.ruri.user:
+                raise SIPError(404, 'Bad resource URI')
+            resource = subscribe.ruri.user + '@' + subscribe.ruri.host
+            yield self.createDialog(subscribe)
+            watcher = subscribe.dialog.id
+            self.addWatcher(watcher, resource, expires)
+            self.notifyWatcher(watcher, status='active', expires=expires, dialog=subscribe.dialog)
+        response = subscribe.createResponse(200, 'OK')
+        response.headers['Expires'] = str(expires)
+        self.sendResponse(response)
 
-    def _cancelStatusTimer(self, resource, tag):
-        if (resource, tag) in self._status_timers:
-            stats['presence_active_timers'] -= 1
-            timer = self._status_timers.pop((resource, tag))
-            if timer.active():
-                timer.cancel()
-            self._dropStatusTimer(resource, tag)
-        else:
-            self._log("Timer (%s, %s) already deleted" % (resource, tag))
+    def addWatcher(self, watcher, resource, expires):
+        self.watchers_by_resource[resource].append(watcher)
+        self.resource_by_watcher[watcher] = resource
+        self.watcher_expires_tid[watcher] = reactor.callLater(expires, self.removeWatcher, watcher)
 
-    @defer.inlineCallbacks
-    def _storeStatusTimer(self, resource, tag, delay):
-        table = self._timersTable()
-        key = '%s:%s' % (resource, tag)
-        expiresat = utils.seconds() + delay
-        yield self.storage.hset(table, key, expiresat)
+    def updateWatcher(self, watcher, expires):
+        tid = self.watcher_expires_tid.get(watcher)
+        if not tid:
+            raise SIPError(404, "Not Found")
+        tid.reset(expires)
 
-    @defer.inlineCallbacks
-    def _dropStatusTimer(self, resource, tag):
-        table = self._timersTable()
-        key = '%s:%s' % (resource, tag)
-        yield self.storage.hdel(table, key)
-
-    @defer.inlineCallbacks
-    def _loadStatusTimers(self):
-        table = self._timersTable()
-        timers = yield self.storage.hgetall(table)
-        stale_timers = []
-        cur_time = utils.seconds()
-        for key, expiresat in timers.iteritems():
-            resource, tag = key.split(':')
-            if expiresat < cur_time:
-                self._dropStatusTimer(self, resource, tag)
-            else:
-                delay = expiresat - cur_time
-                self._setStatusTimer(resource, tag, delay)
+    def removeWatcher(self, watcher):
+        tid = self.watcher_expires_tid.get(watcher)
+        if not tid:
+            raise SIPError(404, 'Not Found')
+        resource = self.resource_by_watcher.pop(watcher)
+        self.watchers_by_resource[resource].remove(watcher)
+        self.watcher_expires_tid.pop(watcher)
+        if tid.active():
+            tid.cancel()
 
     @defer.inlineCallbacks
-    def _notifyWatchers(self, resource):
-        status = yield self.getStatus(resource)
-        for callback, arg, kw in self._callbacks:
-            callback(resource, status, *arg, **kw)
+    def notifyWatcher(self, watcher, pidf=None, dialog=None, status='active', expires=None):
+        if pidf is None:
+            resource = self.resource_by_watcher[watcher]
+            statuses = yield self.presence_service.getStatus(resource)
+            pidf = status2pidf(resource, statuses)
+        if dialog is None:
+            dialog = yield self.dialog_store.get(watcher)
+            if not dialog:
+                raise SIPError(500, "Server Internal Error")
+        if expires is None:
+            expires = self.watcher_expires_tid[watcher].getTime() - reactor.seconds()
+            expires = int(expires)
+        yield self.sendNotify(dialog, pidf, status, expires)
 
-    def _resourceTable(self, resource):
-        return 'res:' + resource
-
-    def _timersTable(self):
-        return 'sys:timers'
-
-    def _resourcesSet(self):
-        return 'sys:resources'
-
-    def _log(self, *args, **kw):
-        kw['system'] = 'presence'
-        utils.msg(*args, **kw)
-
+    @defer.inlineCallbacks
+    def sendNotify(self, dialog, pidf, status, expires):
+        notify = dialog.createRequest('NOTIFY')
+        h = notify.headers
+        h['subscription-state'] = Header(status, {'expires': str(expires)})
+        h['content-type'] = 'application/pidf+xml'
+        h['Event'] = 'presence'
+        notify.content = pidf
+        yield self.sendRequest(notify)
 

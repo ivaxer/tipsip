@@ -1,11 +1,10 @@
 from twisted.trial import unittest
 from twisted.internet import defer
 
-
-from tipsip.sip import Message, Request, Response
-from tipsip.sip import AddressHeader, ViaHeader, CSeqHeader
-from tipsip.sip import URI
-from tipsip.sip import MessageParsingError
+from tipsip import Request, Response
+from tipsip import URI
+from tipsip.message import Message, MessageParsingError
+from tipsip.header import AddressHeader, ViaHeader, CSeqHeader
 
 
 class RequestTest(unittest.TestCase):

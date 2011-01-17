@@ -1,7 +1,7 @@
 from twisted.trial import unittest
 from twisted.internet import defer
 
-from tipsip import MemoryStorage, RedisStorage
+from tipsip.storage import MemoryStorage, RedisStorage
 
 class StorageTestCase(object):
     @defer.inlineCallbacks

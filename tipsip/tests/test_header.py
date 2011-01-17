@@ -1,7 +1,7 @@
 from twisted.trial import unittest
 
-from tipsip.sip import Headers
-from tipsip.sip import Header, AddressHeader, ViaHeader
+from tipsip.header import Headers
+from tipsip.header import Header, AddressHeader, ViaHeader
 
 
 class HeadersTest(unittest.TestCase):

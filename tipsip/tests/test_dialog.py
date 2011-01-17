@@ -1,8 +1,8 @@
 from twisted.trial import unittest
 from twisted.internet import defer
 
-from tipsip.sip import Dialog, DialogStore
-from tipsip import MemoryStorage
+from tipsip.dialog import Dialog, DialogStore
+from tipsip.storage import MemoryStorage
 
 class DialogStoreTest(unittest.TestCase):
     def setUp(self):

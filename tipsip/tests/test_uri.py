@@ -1,7 +1,7 @@
 from twisted.trial import unittest
 from twisted.internet import defer
 
-from tipsip.sip import URI
+from tipsip import URI
 
 
 class URITest(unittest.TestCase):
