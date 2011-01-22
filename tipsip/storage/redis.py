@@ -23,7 +23,7 @@ class RedisStorage(object):
 
     @defer.inlineCallbacks
     def hsetn(self, table, items):
-        for field, value in items:
+        for field, value in items.iteritems():
             yield self.hset(table, field, value)
 
     @defer.inlineCallbacks
