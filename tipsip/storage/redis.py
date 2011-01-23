@@ -46,8 +46,9 @@ class RedisStorage(object):
         if r == 0:
             raise KeyError("Table '%s' or field '%s' not found" % (table, field))
 
+    @defer.inlineCallbacks
     def hincr(self, table, field, value):
-        raise NotImplementedError
+        r = yield self.redis.hincrby(table, field, value)
 
     def hdrop(self, table):
         raise NotImplementedError
