@@ -1,6 +1,5 @@
-TIPSIP -- SIP-related services
+TIPSIP -- SIP-stack on Python
 
-Currently in development.
-
-TODO:
- - Presence server with SIP and RESTful interfaces.
+DEPENDENCIES:
+- twisted (http://twistedmatrix.com)
+- txRedis [for redis storage backed] (https://github.com/deldotdr/txRedis)
