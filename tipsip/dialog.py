@@ -90,8 +90,8 @@ class DialogStore(object):
 
     @defer.inlineCallbacks
     def remove(self, id):
-        # XXX: implement hdrop(table) in storage
-        raise NotImplementedError
+        table = self._table(id)
+        yield self.storage.hdrop(table)
 
     @defer.inlineCallbacks
     def incr_lcseq(self, id):
