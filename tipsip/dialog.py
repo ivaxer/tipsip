@@ -35,6 +35,9 @@ class Dialog(object):
     def fromdict(cls, d):
         if d['route_set']:
             d['route_set'] = json.loads(d['route_set'])
+        d['local_cseq'] = int(d['local_cseq'])
+        d['remote_cseq'] = int(d['remote_cseq'])
+        d['secure'] = bool(d['secure'])
         dialog = cls()
         dialog.__dict__ = d.copy()
         return dialog
