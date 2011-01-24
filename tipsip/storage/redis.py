@@ -50,8 +50,11 @@ class RedisStorage(object):
     def hincr(self, table, field, value):
         yield self.redis.hincr(table, field, value)
 
+    @defer.inlineCallbacks
     def hdrop(self, table):
-        raise NotImplementedError
+        r = yield self.redis.delete(table)
+        if r == 0:
+            raise KetError("Table '%s' not found" % table)
 
     @defer.inlineCallbacks
     def sadd(self, s, item):
