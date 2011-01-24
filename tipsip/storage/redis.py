@@ -48,7 +48,7 @@ class RedisStorage(object):
 
     @defer.inlineCallbacks
     def hincr(self, table, field, value):
-        r = yield self.redis.hincrby(table, field, value)
+        yield self.redis.hincr(table, field, value)
 
     def hdrop(self, table):
         raise NotImplementedError
