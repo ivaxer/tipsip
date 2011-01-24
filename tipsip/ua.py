@@ -127,6 +127,14 @@ class SIPUA(object):
         r.dialog = d
         defer.returnValue(d)
 
+    @defer.inlineCallbacks
+    def removeDialog(self, dialog=None, id=None):
+        if not dialog and not id:
+            raise TypeError("dialog or dialog.id required")
+        if dialog:
+            id = dialog.id
+        yield self.dialog_store.remove(id)
+
     def _createVia(self, req):
         h = req.headers
         if 'via' not in h:
