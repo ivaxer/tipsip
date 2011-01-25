@@ -12,7 +12,8 @@ class RedisStorage(ReconnectingClientFactory):
         self._callbacks = []
 
     def buildProtocol(self, addr):
-        self.redis = ReconnectingClientFactory.buildProtocol(self, addr)
+        self.redis = self.protocol()
+        self.resetDelay()
         reactor.callLater(0, self.runConnectedCallbacks)
         return self.redis
 
