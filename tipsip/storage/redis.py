@@ -3,19 +3,25 @@
 from twisted.internet import defer, protocol, reactor
 
 from txredis.protocol import Redis
+from twisted.internet.protocol import ReconnectingClientFactory
 
-class RedisStorage(object):
-    def __init__(self, host, port):
-        self.host = host
-        self.port = port
+class RedisStorage(ReconnectingClientFactory):
+    protocol = Redis
 
-    @defer.inlineCallbacks
-    def connect(self):
-        clientCreator = protocol.ClientCreator(reactor, Redis)
-        self.redis = yield clientCreator.connectTCP(self.host, self.port)
+    def __init__(self):
+        self._callbacks = []
 
-    def disconnect(self):
-        self.redis.transport.loseConnection()
+    def buildProtocol(self, addr):
+        self.redis = ReconnectingClientFactory.buildProtocol(self, addr)
+        reactor.callLater(0, self.runConnectedCallbacks)
+        return self.redis
+
+    def runConnectedCallbacks(self):
+        for callback, arg, kw in self._callbacks:
+            callback(*arg, **kw)
+
+    def addCallbackOnConnected(self, callback, *arg, **kw):
+        self._callbacks.append((callback, arg, kw))
 
     @defer.inlineCallbacks
     def hset(self, table, field, value):
