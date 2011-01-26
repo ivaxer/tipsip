@@ -10,6 +10,9 @@ class MemoryStorage(object):
         self.htables = {}
         self.sets = defaultdict(set)
 
+    def addCallbackOnConnected(self, *arg, **kw):
+        pass
+
     def hset(self, table, field, value):
         if table not in self.htables:
             self.htables[table] = {}
