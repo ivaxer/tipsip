@@ -1,4 +1,4 @@
-TIPSIP -- SIP-stack on Python
+TIPSIP -- SIP-stack written in Twisted Python
 
 DEPENDENCIES:
 - twisted (http://twistedmatrix.com)
