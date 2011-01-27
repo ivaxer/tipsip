@@ -1,5 +1,5 @@
 from twisted.trial import unittest
-from twisted.internet import defer
+from twisted.internet import defer, reactor
 
 from tipsip.storage import MemoryStorage, RedisStorage
 
@@ -29,7 +29,7 @@ class StorageTestCase(object):
 
     @defer.inlineCallbacks
     def test_hsetngetall(self):
-        yield self.storage.hsetn("table", [("field1", "value1"), ("field2", "value2")])
+        yield self.storage.hsetn("table", {"field1": "value1", "field2": "value2"})
         r = yield self.storage.hgetall("table")
         ex = {'field1': 'value1', 'field2': 'value2'}
         self.assertEqual(ex, r)
@@ -115,10 +115,15 @@ class MemoryStorageTest(StorageTestCase, unittest.TestCase):
 class RedisStorageTest(StorageTestCase, unittest.TestCase):
     @defer.inlineCallbacks
     def setUp(self):
-        self.storage = RedisStorage('localhost', 6379)
-        yield self.storage.connect()
-        yield self.storage.redis.flush()
+        d = defer.Deferred()
+        storage = RedisStorage()
+        storage.addCallbackOnConnected(d.callback, None)
+        self.connector = reactor.connectTCP('localhost', 6379, storage)
+        yield d
+        yield storage.redis.flush()
+        self.storage = storage
 
     def tearDown(self):
-        self.storage.disconnect()
+        self.connector.disconnect()
+        self.storage.stopTrying()
 
