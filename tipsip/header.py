@@ -261,6 +261,13 @@ class ViaHeader(Header):
             params = cls._parse_params(rest)
         return cls(version=version, transport=transport, host=host, port=port, params=params)
 
+    @property
+    def sent_by(self):
+        r = self.host
+        if self.port:
+            r += ':' + self.port
+        return r
+
     @staticmethod
     def _parse_proto(s):
         sent_by, rest = s.split(None, 1)
