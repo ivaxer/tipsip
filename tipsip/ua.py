@@ -23,16 +23,18 @@ class SIPError(Exception):
 class SIPUA(object):
     DEFAULT_UDP_PORT = 5060
 
-    def __init__(self, dialog_store, transport):
+    def __init__(self, dialog_store, transport, transaction_layer):
         self.dialog_store = dialog_store
         self.transport = transport
         transport.messageReceivedCallback = self.messageReceived
+        self.transaction_layer = transaction_layer
+        transaction_layer.requestReceivedCallback = self.requestReceived
         self._pending_requests = {}
         self._pending_finally = {}
 
     def messageReceived(self, message):
         if type(message) == Request:
-            self.requestReceived(message)
+            self.transaction_layer.requestReceived(message)
         elif type(message) == Response:
             self.responseReceived(message)
         else:
