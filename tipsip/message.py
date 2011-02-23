@@ -21,6 +21,7 @@ class Message(object):
         self.from_interface = None
         self.headers = headers or Headers()
         self.content = content
+        self.transaction = None
 
     @classmethod
     def parse(cls, s):
@@ -89,6 +90,7 @@ class Request(Message):
 
     def createResponse(self, code=None, reason=None):
         response = Response(code, reason)
+        response.transaction = self.transaction
         for x in ('from', 'to', 'call-id', 'cseq', 'via'):
             response.headers[x] = deepcopy(self.headers[x])
         if not self.has_totag:

@@ -106,7 +106,10 @@ class SIPUA(object):
             port = self.DEFAULT_UDP_PORT
         else:
             port = int(via.port)
-        self.transport.sendMessage(response, host, port)
+        if response.transaction:
+            self.transaction_layer.sendResponse(response)
+        else:
+            self.transport.sendMessage(response, host, port)
 
     @defer.inlineCallbacks
     def createDialog(self, request):
