@@ -1,5 +1,5 @@
-TIPSIP -- SIP-stack written in Twisted Python
+tipsip -- SIP-stack written in Twisted Python
 
 DEPENDENCIES:
 - twisted (http://twistedmatrix.com)
-- txRedis [for redis storage backed] (https://github.com/deldotdr/txRedis)
+- txRedis [for redis storage backend] (https://github.com/deldotdr/txRedis)
