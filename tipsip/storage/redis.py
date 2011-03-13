@@ -61,7 +61,7 @@ class RedisStorage(ReconnectingClientFactory):
     def hdrop(self, table):
         r = yield self.redis.delete(table)
         if r == 0:
-            raise KetError("Table '%s' not found" % table)
+            raise KeyError("Table '%s' not found" % table)
 
     @defer.inlineCallbacks
     def sadd(self, s, item):
