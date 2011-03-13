@@ -27,8 +27,7 @@ class Dialog(object):
 
     def todict(self):
         d = self.__dict__.copy()
-        if d['route_set']:
-            d['route_set'] = json.dumps(d['route_set'])
+        d['route_set'] = json.dumps(d['route_set'])
         return d
 
     @classmethod
