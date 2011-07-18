@@ -158,11 +158,12 @@ class SIPUA(object):
             dialog_id = hdrs['call-id'], hdrs['to'].params['tag'], hdrs['from'].params['tag']
             dialog = yield self.dialog_store.get(dialog_id)
             if dialog:
-                # XXX: remove it after transaction layer will be implemented
                 if hdrs['cseq'].number != dialog.remote_cseq + 1:
-                    log.msg("Request CSeq mismatch with dialog.remote_cseq. Request call-id: %s, dialog: %s" % \
-                            (hdrs['call-id'], dialog.todict()))
-                    raise NotImplementedError("Probably retransmit received")
+                    log.msg("WARNING! Request CSeq (%s) mismatch. Expected %s." % \
+                            (hdrs['cseq'].number, dialog.remote_cseq))
+                    # Fallback for broken implementations
+                    yield self.removeDialog(dialog)
+                    yield self.createDialog(request)
                 else:
                     yield self.dialog_store.incr_rcseq(dialog.id)
                     request.dialog = dialog
